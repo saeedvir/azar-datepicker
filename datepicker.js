@@ -595,26 +595,43 @@
 
     AzarDatepicker.prototype._renderDaysGrid = function () {
         var grid = this._containerEl.querySelector('.azar-days-grid');
-        var year = this._cursorDate.year, month = this._cursorDate.month;
+        var year = this._cursorDate.year,
+            month = this._cursorDate.month;
         var daysInMonth = this._getDaysInMonth(year, month);
         var cal = this._calendar;
 
-        var firstDayDate = cal === 'jalali' ? new Date(jalaliToGregorian(year, month, 1).gy, jalaliToGregorian(year, month, 1).gm - 1, jalaliToGregorian(year, month, 1).gd)
-            : new Date(year, month - 1, 1);
+        // --- FIXED: safe first‑day calculation ---
+        var firstDayDate;
+        if (cal === 'jalali') {
+            var g = jalaliToGregorian(year, month, 1);
+            // Fallback if conversion failed (should not happen, but guards against edge cases)
+            if (!g) {
+                var now = new Date();
+                g = jalaliToGregorian(now.getFullYear(), now.getMonth() + 1, now.getDate());
+                if (!g) g = { gy: 2024, gm: 1, gd: 1 }; // ultimate fallback
+            }
+            firstDayDate = new Date(g.gy, g.gm - 1, g.gd);
+        } else {
+            firstDayDate = new Date(year, month - 1, 1);
+        }
+
         var startDayOfWeek = firstDayDate.getDay();
-        var weekStart = (cal === 'jalali') ? 6 : 0;  // Jalali: Saturday=6, Gregorian: Sunday=0
+        var weekStart = (cal === 'jalali') ? 6 : 0; // Jalali: Saturday=6, Gregorian: Sunday=0
         var leadingBlanks = (startDayOfWeek - weekStart + 7) % 7;
 
+        // … (the rest of the method stays exactly the same)
         var now = new Date();
         var todayJ = gregorianToJalali(now.getFullYear(), now.getMonth() + 1, now.getDate());
 
         var html = '';
-        var prevMonth = month - 1, prevYear = year;
+        var prevMonth = month - 1,
+            prevYear = year;
         if (prevMonth < 1) { prevMonth = 12; prevYear--; }
         var prevDays = this._getDaysInMonth(prevYear, prevMonth);
         for (var i = leadingBlanks - 1; i >= 0; i--) {
             var pd = prevDays - i;
-            html += '<span class="azar-day-cell azar-outside" data-year="' + prevYear + '" data-month="' + prevMonth + '" data-day="' + pd + '">' + pd + '</span>';
+            html += '<span class="azar-day-cell azar-outside" data-year="' + prevYear + '" data-month="' + prevMonth +
+                '" data-day="' + pd + '">' + pd + '</span>';
         }
 
         for (var d = 1; d <= daysInMonth; d++) {
@@ -622,20 +639,25 @@
             if (cal === 'jalali') {
                 if (todayJ && year === todayJ.jy && month === todayJ.jm && d === todayJ.jd) classes += ' azar-today';
             } else {
-                if (year === now.getFullYear() && month === now.getMonth() + 1 && d === now.getDate()) classes += ' azar-today';
+                if (year === now.getFullYear() && month === now.getMonth() + 1 && d === now.getDate())
+                    classes += ' azar-today';
             }
-            if (this._selectedDate && this._selectedDate.year === year && this._selectedDate.month === month && this._selectedDate.day === d) {
+            if (this._selectedDate && this._selectedDate.year === year && this._selectedDate.month === month &&
+                this._selectedDate.day === d) {
                 classes += ' azar-selected';
             }
-            html += '<span class="' + classes + '" data-year="' + year + '" data-month="' + month + '" data-day="' + d + '">' + d + '</span>';
+            html += '<span class="' + classes + '" data-year="' + year + '" data-month="' + month + '" data-day="' + d +
+                '">' + d + '</span>';
         }
 
         var totalCells = leadingBlanks + daysInMonth;
         var trailingBlanks = (7 - totalCells % 7) % 7;
-        var nextMonth = month + 1, nextYear = year;
+        var nextMonth = month + 1,
+            nextYear = year;
         if (nextMonth > 12) { nextMonth = 1; nextYear++; }
         for (var nd = 1; nd <= trailingBlanks; nd++) {
-            html += '<span class="azar-day-cell azar-outside" data-year="' + nextYear + '" data-month="' + nextMonth + '" data-day="' + nd + '">' + nd + '</span>';
+            html += '<span class="azar-day-cell azar-outside" data-year="' + nextYear + '" data-month="' + nextMonth +
+                '" data-day="' + nd + '">' + nd + '</span>';
         }
         grid.innerHTML = html;
     };
