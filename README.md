@@ -45,6 +45,17 @@ new AzarDatepicker({
 });
 ```
 
+or import:
+
+```javascript
+import AzarDatepicker from './datepicker.js';
+const dp = new AzarDatepicker({ selector: '#myDate' });
+```
+
+```javascript
+const AzarDatepicker = require('./datepicker.js');
+```
+
 #### Options
 
 | Option | Type | Default | Description |
