@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azar Datepicker Demo</title>
+    <link rel="stylesheet" href="datepicker.css">
+</head>
+  <body
+    style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:24px;padding:20px;background:#f5f5f5;font-family:'Segoe UI',sans-serif;">
+
+    <h2 style="margin:0;color:#333;">Azar Datepicker Demo</h2>
+    <p style="margin:0;color:#666;text-align:center;">Pure JS • Jalali & Gregorian • Date & Time • Dark Mode</p>
+
+    <!-- Demo 1: Date only, Jalali -->
+    <label style="font-weight:600;color:#444;">📅 Date Only (Jalali)</label>
+    <input type="text" id="dp1" placeholder="انتخاب تاریخ شمسی"
+        style="width:280px;padding:10px 14px;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;cursor:pointer;">
+
+    <!-- Demo 2: Date & Time, Gregorian -->
+    <label style="font-weight:600;color:#444;">🕐 Date & Time (Gregorian)</label>
+    <input type="text" id="dp2" placeholder="Pick date & time"
+        style="width:280px;padding:10px 14px;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;cursor:pointer;">
+
+    <!-- Demo 3: Time only -->
+    <label style="font-weight:600;color:#444;">⏰ Time Only</label>
+    <input type="text" id="dp3" placeholder="Select time"
+        style="width:280px;padding:10px 14px;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;cursor:pointer;">
+
+    <button id="toggleTheme"
+        style="margin-top:16px;padding:10px 20px;border:none;background:#4f46e5;color:#fff;border-radius:8px;cursor:pointer;font-size:0.9rem;font-weight:600;">🌓
+        Toggle Dark Mode</button>
+
+    <p id="log" style="margin-top:10px;color:#555;font-size:0.85rem;text-align:center;max-width:320px;"></p>
+    
+
+  
+    <script src="datepicker.js"></script>
+    <script>
+        // ========== DEMO INITIALIZATION ==========
+        document.addEventListener('DOMContentLoaded', function () {
+            // Demo 1: Date only, Jalali
+            var dp1 = new AzarDatepicker({
+                selector: '#dp1',
+                mode: 'date',
+                calendar: 'jalali',
+                placeholder: 'انتخاب تاریخ شمسی',
+                jalaliMonths: ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'],
+                jalaliMonthsShort: ['فرو', 'ارد', 'خرد', 'تیر', 'مرد', 'شهر', 'مهر', 'آبا', 'آذر', 'دی', 'بهم', 'اسف'],
+                jalaliWeekDaysShort: ['ش', 'ی', 'د', 'س', 'چ', 'پ', 'ج'],
+                onSelect: function (data) {
+                    document.getElementById('log').textContent =
+                        '✅ Selected (Jalali): ' + data.formatted +
+                        ' | Gregorian: ' + data.nativeDate.toLocaleDateString('en-US');
+                },
+                onChange: function (data) {
+                    console.log('Changed:', data);
+                },
+            });
+
+            // Demo 2: Date & Time, Gregorian
+            var dp2 = new AzarDatepicker({
+                selector: '#dp2',
+                mode: 'datetime',
+                calendar: 'gregorian',
+                placeholder: 'Pick date & time',
+                inputFormat: 'MM/DD/YYYY HH:mm',
+                outputFormat: 'YYYY-MM-DD HH:mm',
+                onSelect: function (data) {
+                    console.log('Datetime selected:', data);
+                },
+            });
+
+            // Demo 3: Time only
+            var dp3 = new AzarDatepicker({
+                selector: '#dp3',
+                mode: 'time',
+                calendar: 'gregorian',
+                placeholder: 'Select time',
+                inputFormat: 'HH:mm',
+                onSelect: function (data) {
+                    document.getElementById('log').textContent =
+                        '🕐 Time selected: ' + data.formatted;
+                },
+            });
+
+            // Theme toggle
+            var themeBtn = document.getElementById('toggleTheme');
+            var currentTheme = 'light';
+            themeBtn.addEventListener('click', function () {
+                if (currentTheme === 'light') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    currentTheme = 'dark';
+                    themeBtn.textContent = '☀️ Toggle Light Mode';
+                } else {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                    currentTheme = 'light';
+                    themeBtn.textContent = '🌓 Toggle Dark Mode';
+                }
+                // Refresh all pickers
+                dp1.refresh();
+                dp2.refresh();
+                dp3.refresh();
+            });
+
+            // Log
+            console.log('Azar Datepicker initialized!');
+            console.log('  dp1 - Jalali Date Only');
+            console.log('  dp2 - Gregorian Date & Time');
+            console.log('  dp3 - Time Only');
+            console.log('  API: .open(), .close(), .toggle(), .getValue(), .setValue(), .setCalendar(), .destroy(), .refresh()');
+        });
+    </script>
+</body>
+</html>
