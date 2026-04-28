@@ -552,7 +552,7 @@
 
         /* ===== RTL Support ===== */
         .azar-datepicker-container[dir="rtl"] .azar-btn-nav {
-            transform: scaleX(-1);
+            transform: scaleX(-1) rotate(180deg);
         }
 
         .azar-datepicker-container[dir="rtl"] .azar-btn-nav:active {
