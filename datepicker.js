@@ -1,4 +1,4 @@
-/*! Azar Datepicker v1.0 – Persian & Gregorian date picker (pure JS) */
+/*! Azar Datepicker v1.1 – Persian & Gregorian date picker (pure JS) */
 /*
 * https://github.com/saeedvir/azar-datepicker
 */
@@ -72,6 +72,21 @@
         if (month === 2) return isGregorianLeap(year) ? 29 : 28;
         return [1, 3, 5, 7, 8, 10, 12].indexOf(month) !== -1 ? 31 : 30;
     }
+    // Convert a date object (with calendar type) to serial day number (for comparisons)
+    // Returns a number that increases with later dates.
+    function dateToTotalDays(dateObj, calendar) {
+        if (!dateObj) return NaN;
+        var y = dateObj.year, m = dateObj.month, d = dateObj.day;
+        if (calendar === 'jalali') {
+            // Approximate but correct ordering; uses 365.2425 days per year in base
+            var g = jalaliToGregorian(y, m, d);
+            if (!g) return NaN;
+            // Use Gregorian date as a comparable timestamp
+            return new Date(g.gy, g.gm - 1, g.gd).getTime();
+        } else {
+            return new Date(y, m - 1, d).getTime();
+        }
+    }
 
     // ========== PERSIAN LOCALISATION (defaults, overridable) ==========
     var JALALI_MONTHS = [
@@ -101,6 +116,7 @@
             selector: null,
             mode: 'date',          // 'date' | 'time' | 'datetime'
             calendar: 'jalali',    // 'jalali' | 'gregorian'
+            autoLoad: true,
             inputFormat: null,
             outputFormat: null,
             placeholder: null,
@@ -119,11 +135,17 @@
         };
 
         this.options = {};
+
+        if (typeof options.autoload === 'boolean') {
+            this._defaults.autoLoad = options.autoload;
+        }
         for (var key in this._defaults) {
             if (this._defaults.hasOwnProperty(key)) {
                 this.options[key] = (options && options[key] !== undefined) ? options[key] : this._defaults[key];
             }
         }
+
+
 
         this.inputEl = null;
         if (typeof this.options.selector === 'string') {
@@ -183,6 +205,45 @@
         this._bindEvents();
         this._updateInputDisplay();
         this._applyDarkMode();
+        if (this.options.autoLoad) {
+            this._setTodaySilently();
+        }
+    };
+
+    AzarDatepicker.prototype._setTodaySilently = function () {
+        var now = new Date();
+        var gy = now.getFullYear(), gm = now.getMonth() + 1, gd = now.getDate();
+        var hour = now.getHours(), minute = now.getMinutes();
+
+        if (this._calendar === 'jalali') {
+            var j = gregorianToJalali(gy, gm, gd);
+            if (!j) j = gregorianToJalali(2024, 1, 1);
+            this._selectedDate = { year: j.jy, month: j.jm, day: j.jd, hour: hour, minute: minute };
+            this._cursorDate = { year: j.jy, month: j.jm, day: j.jd, hour: hour, minute: minute };
+        } else {
+            this._selectedDate = { year: gy, month: gm, day: gd, hour: hour, minute: minute };
+            this._cursorDate = { year: gy, month: gm, day: gd, hour: hour, minute: minute };
+        }
+
+        if (this.options.minDate) {
+            var minD = dateToTotalDays(this.options.minDate, this._calendar);
+            var selD = dateToTotalDays(this._selectedDate, this._calendar);
+            if (!isNaN(minD) && !isNaN(selD) && selD < minD) {
+                this._selectedDate = {
+                    year: this.options.minDate.year,
+                    month: this.options.minDate.month,
+                    day: this.options.minDate.day,
+                    hour: this.options.minDate.hour || 0,
+                    minute: this.options.minDate.minute || 0
+                };
+                this._cursorDate = { ...this._selectedDate };
+            }
+        }
+
+        this._view = 'days';
+        this._updateInputDisplay();
+        this._renderView();
+        // Intentionally no _fireChange / _fireSelect
     };
 
     AzarDatepicker.prototype._detectDarkMode = function () {
@@ -385,6 +446,12 @@
     };
 
     AzarDatepicker.prototype._navigate = function (delta) {
+        var oldCursor = {
+            year: this._cursorDate.year,
+            month: this._cursorDate.month,
+            day: this._cursorDate.day || 1
+        };
+
         if (this._view === 'days') {
             this._cursorDate.month += delta;
             if (this._cursorDate.month > 12) { this._cursorDate.month = 1; this._cursorDate.year++; }
@@ -395,6 +462,36 @@
             this._cursorDate.year += delta * 12;
         }
         if (this._cursorDate.year < 1) this._cursorDate.year = 1;
+
+        if (this.options.minDate) {
+            var minD = dateToTotalDays(this.options.minDate, this._calendar);
+            var curFirst = dateToTotalDays(
+                { year: this._cursorDate.year, month: this._cursorDate.month, day: 1 },
+                this._calendar
+            );
+            // If the *last day* of the month is before minDate, revert
+            var lastDay = this._getDaysInMonth(this._cursorDate.year, this._cursorDate.month);
+            var curLast = dateToTotalDays(
+                { year: this._cursorDate.year, month: this._cursorDate.month, day: lastDay },
+                this._calendar
+            );
+            if (!isNaN(minD) && !isNaN(curLast) && curLast < minD) {
+                this._cursorDate = oldCursor;
+                return;
+            }
+        }
+        if (this.options.maxDate) {
+            var maxD = dateToTotalDays(this.options.maxDate, this._calendar);
+            var curFirst = dateToTotalDays(
+                { year: this._cursorDate.year, month: this._cursorDate.month, day: 1 },
+                this._calendar
+            );
+            if (!isNaN(maxD) && !isNaN(curFirst) && curFirst > maxD) {
+                this._cursorDate = oldCursor;
+                return;
+            }
+        }
+
         this._renderView();
     };
 
@@ -509,20 +606,39 @@
     };
 
     AzarDatepicker.prototype._onDaySelect = function (dayData) {
-        this._selectedDate = {
+        var self = this;
+        var newDate = {
             year: dayData.year,
             month: dayData.month,
             day: dayData.day,
             hour: this._selectedDate ? this._selectedDate.hour : (this._cursorDate.hour || 0),
             minute: this._selectedDate ? this._selectedDate.minute : (this._cursorDate.minute || 0)
         };
+
+        // --- Min/Max validation ---
+        if (this.options.minDate) {
+            var minDays = dateToTotalDays(this.options.minDate, this._calendar);
+            var selDays = dateToTotalDays(newDate, this._calendar);
+            if (!isNaN(minDays) && !isNaN(selDays) && selDays < minDays) {
+                return; // silently reject
+            }
+        }
+        if (this.options.maxDate) {
+            var maxDays = dateToTotalDays(this.options.maxDate, this._calendar);
+            var selDays2 = dateToTotalDays(newDate, this._calendar);
+            if (!isNaN(maxDays) && !isNaN(selDays2) && selDays2 > maxDays) {
+                return;
+            }
+        }
+
+        this._selectedDate = newDate;
         this._cursorDate.year = dayData.year;
         this._cursorDate.month = dayData.month;
         this._cursorDate.day = dayData.day;
         this._updateInputDisplay();
         this._renderView();
-        this._fireChange();    // always fire onChange
-        this._fireSelect();    // fire onSelect only here
+        this._fireChange();
+        this._fireSelect();
         if (this.options.closeOnSelect && this.options.mode === 'date') {
             this.close();
         }
@@ -594,6 +710,7 @@
     };
 
     AzarDatepicker.prototype._renderDaysGrid = function () {
+        var self = this;
         var grid = this._containerEl.querySelector('.azar-days-grid');
         var year = this._cursorDate.year,
             month = this._cursorDate.month;
@@ -636,15 +753,34 @@
 
         for (var d = 1; d <= daysInMonth; d++) {
             var classes = 'azar-day-cell';
-            if (cal === 'jalali') {
-                if (todayJ && year === todayJ.jy && month === todayJ.jm && d === todayJ.jd) classes += ' azar-today';
-            } else {
-                if (year === now.getFullYear() && month === now.getMonth() + 1 && d === now.getDate())
-                    classes += ' azar-today';
+            var cellDate = { year: year, month: month, day: d, hour: 0, minute: 0 };
+            var isDisabled = false;
+
+            // Check min/max
+            if (self.options.minDate) {
+                var minD = dateToTotalDays(self.options.minDate, cal);
+                var curD = dateToTotalDays(cellDate, cal);
+                if (!isNaN(minD) && !isNaN(curD) && curD < minD) isDisabled = true;
             }
-            if (this._selectedDate && this._selectedDate.year === year && this._selectedDate.month === month &&
-                this._selectedDate.day === d) {
-                classes += ' azar-selected';
+            if (self.options.maxDate && !isDisabled) {
+                var maxD = dateToTotalDays(self.options.maxDate, cal);
+                var curD2 = dateToTotalDays(cellDate, cal);
+                if (!isNaN(maxD) && !isNaN(curD2) && curD2 > maxD) isDisabled = true;
+            }
+
+            if (isDisabled) {
+                classes += ' azar-disabled';
+            } else {
+                if (cal === 'jalali') {
+                    if (todayJ && year === todayJ.jy && month === todayJ.jm && d === todayJ.jd) classes += ' azar-today';
+                } else {
+                    if (year === now.getFullYear() && month === now.getMonth() + 1 && d === now.getDate())
+                        classes += ' azar-today';
+                }
+                if (self._selectedDate && self._selectedDate.year === year && self._selectedDate.month === month &&
+                    self._selectedDate.day === d) {
+                    classes += ' azar-selected';
+                }
             }
             html += '<span class="' + classes + '" data-year="' + year + '" data-month="' + month + '" data-day="' + d +
                 '">' + d + '</span>';
@@ -825,12 +961,33 @@
     AzarDatepicker.prototype.toggle = function () { this._isOpen ? this.close() : this.open(); };
     AzarDatepicker.prototype.getValue = function () { return this._getOutputData(); };
     AzarDatepicker.prototype.setValue = function (dateObj) {
-        if (!dateObj) { this._selectedDate = null; this._updateInputDisplay(); this._renderView(); return; }
+        if (!dateObj) {
+            this._selectedDate = null;
+            this._updateInputDisplay();
+            this._renderView();
+            return;
+        }
+        // Validate required fields
+        var y = dateObj.year, m = dateObj.month, d = dateObj.day;
+        if (typeof y !== 'number' || typeof m !== 'number' || typeof d !== 'number' ||
+            m < 1 || m > 12 || d < 1 || d > this._getDaysInMonth(y, m) || y < 1) {
+            console.warn('AzarDatepicker.setValue: invalid date object', dateObj);
+            return;
+        }
+
+
         this._selectedDate = {
-            year: dateObj.year, month: dateObj.month, day: dateObj.day,
-            hour: dateObj.hour || 0, minute: dateObj.minute || 0
+            year: y,
+            month: m,
+            day: d,
+            hour: dateObj.hour || 0,
+            minute: dateObj.minute || 0
         };
-        this._cursorDate = { ...this._selectedDate };
+        this._cursorDate = {
+            year: y, month: m, day: d,
+            hour: dateObj.hour || 0,
+            minute: dateObj.minute || 0
+        };
         this._updateInputDisplay();
         this._renderView();
     };
@@ -838,12 +995,33 @@
     AzarDatepicker.prototype.getCalendar = function () { return this._calendar; };
     AzarDatepicker.prototype.destroy = function () {
         this.close();
-        if (this._overlayEl && this._overlayEl.parentNode) this._overlayEl.parentNode.removeChild(this._overlayEl);
-        if (this._containerEl && this._containerEl.parentNode) this._containerEl.parentNode.removeChild(this._containerEl);
-        if (this._wrapperEl && this.inputEl) {
-            this._wrapperEl.parentNode.insertBefore(this.inputEl, this._wrapperEl);
-            this._wrapperEl.parentNode.removeChild(this._wrapperEl);
+
+        // Remove overlay safely
+        if (this._overlayEl && this._overlayEl.parentNode) {
+            this._overlayEl.parentNode.removeChild(this._overlayEl);
         }
+        // Remove container safely
+        if (this._containerEl && this._containerEl.parentNode) {
+            this._containerEl.parentNode.removeChild(this._containerEl);
+        }
+
+        // Unwrap input – try block to avoid crashes in unexpected DOM states
+        try {
+            if (this._wrapperEl && this.inputEl && this._wrapperEl.parentNode) {
+                this._wrapperEl.parentNode.insertBefore(this.inputEl, this._wrapperEl);
+                this._wrapperEl.parentNode.removeChild(this._wrapperEl);
+            }
+        } catch (e) {
+            // If the wrapper is already detached, at least clean up the input classes
+            if (this.inputEl) {
+                this.inputEl.classList.remove('azar-datepicker-input');
+                this.inputEl.removeAttribute('readonly');
+                this.inputEl.removeAttribute('autocomplete');
+            }
+            return;
+        }
+
+        // Clean up the input element
         this.inputEl.classList.remove('azar-datepicker-input');
         this.inputEl.removeAttribute('readonly');
         this.inputEl.removeAttribute('autocomplete');
