@@ -38,11 +38,23 @@ new AzarDatepicker({
     calendar: 'jalali',    // 'jalali' | 'gregorian'
     inputFormat: 'YYYY/MM/DD',   // custom format
     outputFormat: 'YYYY-MM-DD',
+    autoload:true,
+    minDate: { year: 1402, month: 1, day: 1 },
+    maxDate: { year: 1404, month: 12, day: 29 },
     onSelect: function(data) {
         console.log(data.formatted); // formatted string
         console.log(data.nativeDate); // JS Date object
     }
 });
+```
+or using html attributes
+
+```html
+<input type="text" data-azar-datepicker
+       data-azar-auto-load="true"
+       data-azar-calendar="jalali"
+       data-azar-mode="datetime"
+       data-azar-input-format="YYYY/MM/DD HH:mm">
 ```
 
 or import:
