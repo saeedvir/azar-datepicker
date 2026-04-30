@@ -77,6 +77,7 @@ const AzarDatepicker = require('./datepicker.js');
 | calendar | 'jalali' 'gregorian' | 'jalali' | Starting calendar |
 | inputFormat | string | auto | Display format (e.g. 'YYYY/MM/DD HH:mm') |
 | outputFormat | string | same as input | Format returned by getValue() and callbacks |
+| autoload | boolean | true | auto load output format to input selector |
 | placeholder | string | null | Placeholder for the input |
 | darkMode | 'auto' 'light' 'dark' | 'auto' | Dark mode behaviour |
 | rtl | boolean | auto (true for Jalali) | Force RTL/LTR direction |
