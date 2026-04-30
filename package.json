@@ -1,0 +1,20 @@
+{
+  "name": "azar-datepicker",
+  "version": "1.0.0",
+  "description": "Persian & Gregorian date picker (pure JS)",
+  "main": "datepicker.js",
+  "style": "datepicker.css",
+  "files": [
+    "datepicker.js",
+    "datepicker..min.js",
+    "datepicker.css",
+    "datepicker.min.css"
+  ],
+  "keywords": ["datepicker", "persian", "jalali", "gregorian", "calendar"],
+  "author": "saeedvir",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/saeedvir/azar-datepicker"
+  }
+}
