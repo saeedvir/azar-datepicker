@@ -1,4 +1,4 @@
-/*! Azar Datepicker v1.1 – Persian & Gregorian date picker (pure JS) */
+/*! Azar Datepicker v1.1.2 – Persian & Gregorian date picker (pure JS) */
 /*
 * https://github.com/saeedvir/azar-datepicker
 */
@@ -122,12 +122,14 @@
             placeholder: null,
             onSelect: null,
             onChange: null,
+            onClear: null,
             minDate: null,
             maxDate: null,
             darkMode: 'auto',
             rtl: null,
             closeOnSelect: true,
             showCalendarToggle: true,
+            showClearButton: true,
             // Custom localisation
             jalaliMonths: null,
             jalaliMonthsShort: null,
@@ -280,12 +282,25 @@
         this.inputEl.setAttribute('autocomplete', 'off');
         this._wrapperEl = wrapper;
 
+        // ---- Clear button ----
+        if (this.options.showClearButton) {
+            var clearBtn = document.createElement('button');
+            clearBtn.className = 'azar-clear-btn';
+            clearBtn.setAttribute('type', 'button');
+            clearBtn.innerHTML = '✕';
+            clearBtn.setAttribute('aria-label', 'Clear date');
+            clearBtn.style.display = 'none';
+            wrapper.appendChild(clearBtn);
+            this._clearBtn = clearBtn;
+        }
+
         var container = document.createElement('div');
         container.className = 'azar-datepicker-container';
         if (this.options.rtl) container.setAttribute('dir', 'rtl');
         container.setAttribute('data-calendar', this._calendar);
         container.innerHTML = this._renderFullHTML();
         wrapper.appendChild(container);
+
         this._containerEl = container;
 
         var overlay = document.createElement('div');
@@ -365,6 +380,15 @@
 
     AzarDatepicker.prototype._bindEvents = function () {
         var self = this;
+
+        // Clear button
+        if (this._clearBtn) {
+            this._clearBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                self._clear();
+                e.target.style.display = 'none';
+            });
+        }
 
         this.inputEl.addEventListener('click', function (e) {
             e.stopPropagation();
@@ -846,8 +870,22 @@
         }
         this.inputEl.value = this._formatDate(this._selectedDate, this.options.inputFormat);
         this.inputEl.classList.add('azar-has-value');
+
+        if (this._clearBtn) {
+            this._clearBtn.style.display = this._selectedDate ? 'inline-block' : 'none';
+        }
     };
 
+    AzarDatepicker.prototype._clear = function () {
+        if (!this._selectedDate) return;
+        this._selectedDate = null;
+        this._updateInputDisplay();
+        this._renderView();
+        this._fireClear();
+        if (this._isOpen) {
+            this.close();
+        }
+    };
     AzarDatepicker.prototype._formatDate = function (dateObj, format) {
         var y = dateObj.year, m = dateObj.month, d = dateObj.day, h = dateObj.hour || 0, min = dateObj.minute || 0;
         var cal = this._calendar;
@@ -881,6 +919,12 @@
     AzarDatepicker.prototype._fireSelect = function () {
         if (!this._selectedDate || typeof this.options.onSelect !== 'function') return;
         this.options.onSelect(this._getOutputData());
+    };
+    AzarDatepicker.prototype._fireClear = function () {
+        if (!this._selectedDate || typeof this.options.onSelect === 'function') {
+            this.options.onClear();
+        }
+        return;
     };
 
     AzarDatepicker.prototype._getOutputData = function () {
