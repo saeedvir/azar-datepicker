@@ -85,7 +85,7 @@ const AzarDatepicker = require('./datepicker.js');
 | showCalendarToggle | boolean | true | Show button to switch calendars |
 | onSelect | function | null | Called when a date/time is selected |
 | onChange | function | null | Called whenever the selection changes |
-
+| onClear | function | null | Called when clicked on clear button |
 
 > **Note:** `onSelect` and `onChange` receive an object as their argument.
 
