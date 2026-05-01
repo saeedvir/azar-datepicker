@@ -1,4 +1,4 @@
-/*! Azar Datepicker v1.0 – Persian & Gregorian date picker (pure JS) */
+/*! Azar Datepicker v1.1.2 – Persian & Gregorian date picker (pure JS) */
 /*
 * https://github.com/saeedvir/azar-datepicker
 */
@@ -566,6 +566,59 @@
 
 .azar-datepicker-container[dir="rtl"] {
     font-family: var(--azar-font-fa);
+}
+
+/* ===== Clear Button ===== */
+.azar-datepicker-wrapper {
+    position: relative;
+    /* already present – keep it! */
+}
+
+.azar-clear-btn {
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1.1rem;
+    color: var(--azar-text-muted);
+    padding: 4px;
+    border-radius: 50%;
+    display: none;
+    /* hidden by default */
+    line-height: 1;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    z-index: 2;
+}
+
+.azar-clear-btn:hover {
+    color: var(--azar-text);
+    background: var(--azar-hover-bg);
+}
+
+.azar-clear-btn:active {
+    transform: translateY(-50%) scale(0.85);
+}
+
+/* RTL: move to the left side */
+.azar-datepicker-container[dir="rtl"]~.azar-clear-btn,
+.azar-datepicker-wrapper:has(.azar-datepicker-container[dir="rtl"]) .azar-clear-btn {
+    right: auto;
+    left: 10px;
+}
+
+/* Adjust input padding to not overlap with the button */
+.azar-datepicker-input {
+    padding-right: 34px;
+    /* for LTR */
+}
+
+.azar-datepicker-container[dir="rtl"]~.azar-datepicker-input {
+    padding-right: 10px;
+    padding-left: 34px;
+    /* for RTL */
 }
 
 /* ===== Responsive ===== */
