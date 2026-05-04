@@ -83,6 +83,7 @@ const AzarDatepicker = require('./datepicker.js');
 | rtl | boolean | auto (true for Jalali) | Force RTL/LTR direction |
 | closeOnSelect | boolean | true | Close picker after date selection (not time) |
 | showCalendarToggle | boolean | true | Show button to switch calendars |
+| onLoad | function | null | Called when a calendar loaded (for set default ,...)  |
 | onSelect | function | null | Called when a date/time is selected |
 | onChange | function | null | Called whenever the selection changes |
 | onClear | function | null | Called when clicked on clear button |
@@ -110,6 +111,7 @@ dp.close();
 dp.toggle();
 dp.getValue();          // returns current selection data object
 dp.setValue({ year:1414, month:1, day:1, hour:12, minute:0 });
+dp.setValueFromString("1405-12-21 08:24")
 dp.setCalendar('gregorian');  // switch to Gregorian
 dp.getCalendar();       // returns 'jalali' or 'gregorian'
 dp.refresh();           // re‑detect dark mode / mobile
