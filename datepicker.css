@@ -27,11 +27,11 @@
     --azar-outside-text: #d1d5db;
     --azar-modal-z: 9999;
     --azar-font: 'Segoe UI', 'Roboto', 'Tahoma', system-ui, -apple-system, sans-serif;
-    --azar-font-fa: 'Vazirmatn', 'Tahoma', 'Segoe UI', system-ui, sans-serif;
+    --azar-font-fa: 'Vazirmatn', 'Vazirmatn-Regular', 'Tahoma', 'Segoe UI', system-ui, sans-serif;
 }
 
 /* Dark mode: device preference */
-@media (prefers-color-scheme: dark) {
+/*@media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]):not([data-bs-theme="light"]) {
         --azar-bg: #1e1f2b;
         --azar-surface: #272833;
@@ -51,7 +51,7 @@
         --azar-weekday-text: #9ca3af;
     }
 }
-
+*/
 /* Dark mode: data-theme="dark" */
 :root[data-theme="dark"],
 :root[data-bs-theme="dark"] {
@@ -92,7 +92,7 @@
 /* ===== Input ===== */
 .azar-datepicker-input {
     width: 100%;
-    padding: 10px 14px;
+    padding: 7px 14px;
     font-size: 0.95rem;
     font-family: var(--azar-font);
     border: 1.5px solid var(--azar-border);
