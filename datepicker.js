@@ -123,10 +123,11 @@
             selector: null,
             mode: 'date',          // 'date' | 'time' | 'datetime'
             calendar: 'jalali',    // 'jalali' | 'gregorian'
-            autoLoad: true,
+            autoLoad: false,
             inputFormat: null,
             outputFormat: null,
             placeholder: null,
+            onLoad: null,   // callback(datepickerInstance) after initial setup
             onSelect: null,
             onChange: null,
             onClear: null,
@@ -214,6 +215,10 @@
         if (this.options.autoLoad) {
             this._setTodaySilently();
         }
+        // Fire onLoad callback if provided
+        if (typeof this.options.onLoad === 'function') {
+            this.options.onLoad(this);
+        }
     };
 
     AzarDatepicker.prototype._setTodaySilently = function () {
@@ -293,7 +298,7 @@
             clearBtn.setAttribute('type', 'button');
             clearBtn.innerHTML = '✕';
             clearBtn.setAttribute('aria-label', 'Clear date');
-            clearBtn.style.display = 'none';
+            clearBtn.style.display = 'inline';
             wrapper.appendChild(clearBtn);
             this._clearBtn = clearBtn;
         }
@@ -859,11 +864,15 @@
         }
         if (!this._selectedDate) {
             this.inputEl.value = '';
+            this.inputEl.setAttribute('value', this.inputEl.value);
             this.inputEl.classList.remove('azar-has-value');
             if (this._clearBtn) this._clearBtn.style.display = 'none';
             return;
         }
+
         this.inputEl.value = this._formatDate(this._selectedDate, this.options.inputFormat);
+        this.inputEl.setAttribute('value', this.inputEl.value);
+
         this.inputEl.classList.add('azar-has-value');
         // Show clear button
         if (this._clearBtn) {
@@ -1024,6 +1033,49 @@
         };
         this._updateInputDisplay();
         this._renderView();
+    };
+    AzarDatepicker.prototype.setValueFromString = function (dateString) {
+        // Clear if empty
+        if (!dateString || typeof dateString !== 'string' || dateString.trim() === '') {
+            this.setValue(null);
+            return this;
+        }
+
+        var parts = dateString.trim().split(/\s+/);
+        var datePart = parts[0];
+        var timePart = parts[1] || '00:00';
+
+        // Accept both '/' and '-' as separator
+        datePart = datePart.replace(/-/g, '/');
+        var dateSegments = datePart.split('/');
+
+        if (dateSegments.length !== 3) {
+            console.warn('AzarDatepicker.setValueFromString: invalid format. Use YYYY/MM/DD or YYYY-MM-DD');
+            return this;
+        }
+
+        var year = parseInt(dateSegments[0], 10);
+        var month = parseInt(dateSegments[1], 10);
+        var day = parseInt(dateSegments[2], 10);
+
+        if (isNaN(year) || isNaN(month) || isNaN(day)) {
+            console.warn('AzarDatepicker.setValueFromString: non‑numeric values');
+            return this;
+        }
+
+        // Time
+        var timeSegments = timePart.split(':');
+        var hour = parseInt(timeSegments[0], 10) || 0;
+        var minute = parseInt(timeSegments[1], 10) || 0;
+
+        // Basic range checks (detailed day‑in‑month is handled by setValue)
+        if (month < 1 || month > 12 || day < 1 || day > 31 || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+            console.warn('AzarDatepicker.setValueFromString: value out of range');
+            return this;
+        }
+
+        this.setValue({ year: year, month: month, day: day, hour: hour, minute: minute });
+        return this;
     };
     AzarDatepicker.prototype.setCalendar = function (cal) { if (cal !== this._calendar) this._toggleCalendar(); };
     AzarDatepicker.prototype.getCalendar = function () { return this._calendar; };
