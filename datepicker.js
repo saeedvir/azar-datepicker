@@ -1,4 +1,4 @@
-/*! Azar Datepicker v1.1.3 – Persian & Gregorian date picker (pure JS) */
+/*! Azar Datepicker v1.1.4 – Persian & Gregorian date picker (pure JS) */
 /*
 * https://github.com/saeedvir/azar-datepicker
 */
@@ -308,14 +308,17 @@
         if (this.options.rtl) container.setAttribute('dir', 'rtl');
         container.setAttribute('data-calendar', this._calendar);
         container.innerHTML = this._renderFullHTML();
-        wrapper.appendChild(container);
-
+        // wrapper.appendChild(container);
+        document.body.appendChild(container);
         this._containerEl = container;
 
         var overlay = document.createElement('div');
         overlay.className = 'azar-overlay';
         document.body.appendChild(overlay);
         this._overlayEl = overlay;
+
+        // Store a flag so we know container is not inside wrapper
+        this._containerInBody = true;
     };
 
     AzarDatepicker.prototype._renderFullHTML = function () {
@@ -982,16 +985,71 @@
 
         var container = this._containerEl;
         container.classList.remove('azar-closing');
+
         if (this._isMobile) {
             container.classList.add('azar-modal');
             this._overlayEl.classList.add('azar-open');
+            container.style.zIndex = '10550';          // above Bootstrap modal
+            this._overlayEl.style.zIndex = '10549';   // overlay just below container
+            // Reset inline positioning (modal uses centered fixed)
+            container.style.top = '';
+            container.style.bottom = '';
+            container.style.left = '';
+            container.style.right = '';
+            container.style.marginTop = '';
+            container.style.marginBottom = '';
         } else {
             container.classList.remove('azar-modal');
             this._overlayEl.classList.remove('azar-open');
+            this._positionContainer();                // set dropdown position & flip
         }
+
         void container.offsetWidth;
         container.classList.add('azar-open');
         this._isOpen = true;
+    };
+    AzarDatepicker.prototype._positionContainer = function () {
+        var container = this._containerEl;
+        if (!container || this._isMobile) return;  // mobile uses fixed centering
+
+        var input = this.inputEl;
+        var inputRect = input.getBoundingClientRect();
+        var containerHeight = container.offsetHeight || 310; // fallback guess
+        var spaceBelow = window.innerHeight - inputRect.bottom;
+        var spaceAbove = inputRect.top;
+        var isRtl = this.options.rtl;
+
+        // Decide direction: if there's less than 220px below and more above, flip
+        var flip = (spaceBelow < containerHeight + 10) && (spaceAbove > spaceBelow);
+
+        // Remove any previous direction classes
+        container.classList.remove('azar-drop-up', 'azar-drop-down');
+
+        if (flip) {
+            container.classList.add('azar-drop-up');
+            // Position above the input
+            container.style.top = 'auto';
+            container.style.bottom = (window.innerHeight - inputRect.top) + 'px';
+            container.style.marginBottom = '6px';
+        } else {
+            container.classList.add('azar-drop-down');
+            container.style.top = inputRect.bottom + 'px';
+            container.style.bottom = 'auto';
+            container.style.marginTop = '6px';
+        }
+
+        // Horizontal positioning (take RTL into account)
+        if (isRtl) {
+            // Align right edge
+            container.style.right = (window.innerWidth - inputRect.right) + 'px';
+            container.style.left = 'auto';
+        } else {
+            container.style.left = inputRect.left + 'px';
+            container.style.right = 'auto';
+        }
+
+        // Set a high custom z‑index directly (overrides CSS variable if needed)
+        container.style.zIndex = '10550';
     };
 
     AzarDatepicker.prototype.close = function () {
@@ -1113,6 +1171,9 @@
         this._detectMobile();
         this._renderView();
         this._updateInputDisplay();
+        if (this._isOpen && !this._isMobile) {
+            this._positionContainer();
+        }
     };
 
     // ========== STATIC INIT ==========
