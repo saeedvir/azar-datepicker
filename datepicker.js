@@ -6,7 +6,6 @@
     'use strict';
 
     // ========== JALALI CALENDAR CONVERSION (SAFE) ==========
-
     function gregorianToJalali(gy, gm, gd) {
         if (gy < 1 || gm < 1 || gm > 12 || gd < 1) return null;
         var g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
@@ -36,29 +35,35 @@
 
     function jalaliToGregorian(jy, jm, jd) {
         if (jy < 1 || jm < 1 || jm > 12 || jd < 1) return null;
-        var jy1 = jy - 979;
-        var jm1 = jm - 1;
-        var jdays = 365 * jy1 + Math.floor(jy1 / 33) * 8 + Math.floor(((jy1 % 33) + 3) / 4);
-        jdays += (jm < 7) ? (jm1 * 31) : ((jm1 * 30) + 6);
-        jdays += jd - 1;
-        var gdays = jdays + 226899;
-        if (gdays < 0) return null;
-        var gy = Math.floor((gdays - 1) / 365.2425) + 1;
-        if (gy < 1) return null;
-        var g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365];
-        var gm = 1;
-        while (gm <= 12) {
-            var daysInMonth = g_d_m[gm] - g_d_m[gm - 1];
-            if (gm === 2 && isGregorianLeap(gy)) daysInMonth = 29;
-            if (gm === 2 && !isGregorianLeap(gy)) daysInMonth = 28;
-            if (gdays <= g_d_m[gm - 1] + daysInMonth) break;
-            gm++;
+        // Standard algorithm from jalaali-js (MIT)
+        var jy1 = jy + 1595;
+        var days = -355668 + 365 * jy1 + Math.floor(jy1 / 33) * 8 + Math.floor(((jy1 % 33) + 3) / 4) + jd;
+        if (jm < 7) {
+            days += (jm - 1) * 31;
+        } else {
+            days += (jm - 7) * 30 + 186;
         }
-        var gd = gdays - g_d_m[gm - 1];
-        if (gm === 2 && isGregorianLeap(gy) && gd > 29) gd = 29;
-        if (gm === 2 && !isGregorianLeap(gy) && gd > 28) gd = 28;
-        if (gd < 1) gd = 1;
-        return { gy: gy, gm: gm, gd: Math.min(gd, 31) };
+        var gy = 400 * Math.floor(days / 146097);
+        days %= 146097;
+        if (days > 36524) {
+            gy += 100 * Math.floor((days - 1) / 36524);
+            days = (days - 1) % 36524;
+            if (days >= 365) gy++;
+        }
+        gy += 4 * Math.floor(days / 1461);
+        days %= 1461;
+        if (days > 365) {
+            gy += Math.floor((days - 1) / 365);
+            days = (days - 1) % 365;
+        }
+        var gdml = [0, 31, isGregorianLeap(gy) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        var gm;
+        for (gm = 1; gm < 13; gm++) {
+            if (days < gdml[gm]) break;
+            days -= gdml[gm];
+        }
+        var gd = days + 1;
+        return { gy: gy, gm: gm, gd: gd };
     }
 
     function isGregorianLeap(year) { return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0); }
@@ -91,7 +96,6 @@
         if (calendar === 'jalali') {
             return jalaliToDayNumber(y, m, d);
         } else {
-            // Gregorian: use Date for simplicity (no timezone issues for pure date comparison)
             return new Date(y, m - 1, d).getTime();
         }
     }
