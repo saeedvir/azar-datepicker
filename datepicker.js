@@ -225,6 +225,32 @@
         }
     };
 
+    AzarDatepicker.prototype._getWeekdayIndex = function (year, month, day) {
+        // Returns 0..6 where 0 = Saturday (Jalali) or Sunday (Gregorian)?
+        // We'll return JavaScript's getDay() (0=Sunday, 6=Saturday) for consistency.
+        var cal = this._calendar;
+        var date;
+        if (cal === 'jalali') {
+            var g = jalaliToGregorian(year, month, day);
+            if (!g) return 0;
+            date = new Date(g.gy, g.gm - 1, g.gd);
+        } else {
+            date = new Date(year, month - 1, day);
+        }
+        return date.getDay(); // 0=Sunday, 1=Monday ... 6=Saturday
+    };
+
+    AzarDatepicker.prototype._isWeekend = function (weekdayIndex) {
+        var cal = this._calendar;
+        if (cal === 'jalali') {
+            // Friday is weekend → weekdayIndex 5 (since Sunday=0 => Friday=5)
+            return weekdayIndex === 5;
+        } else {
+            // Gregorian: Saturday and Sunday are weekend
+            return weekdayIndex === 0 || weekdayIndex === 6;
+        }
+    };
+
     AzarDatepicker.prototype._setTodaySilently = function () {
         var now = new Date();
         var gy = now.getFullYear(), gm = now.getMonth() + 1, gd = now.getDate();
@@ -803,6 +829,11 @@
             if (isDisabled) {
                 classes += ' azar-disabled';
             } else {
+                var weekday = this._getWeekdayIndex(year, month, d);
+                if (this._isWeekend(weekday)) {
+                    classes += ' azar-weekend';
+                }
+
                 if (cal === 'jalali') {
                     if (todayJ && year === todayJ.jy && month === todayJ.jm && d === todayJ.jd) classes += ' azar-today';
                 } else {
