@@ -35,8 +35,8 @@ jsdelivr:
 
 GitHub Link:
 ```html
-<link rel="stylesheet" href="https://raw.githubusercontent.com/saeedvir/azar-datepicker/main/datepicker.css">
-<script src="https://raw.githubusercontent.com/saeedvir/azar-datepicker/main/datepicker.js"></script>
+<link rel="stylesheet" href="https://raw.githubusercontent.com/saeedvir/azar-datepicker/main/datepicker.min.css">
+<script src="https://raw.githubusercontent.com/saeedvir/azar-datepicker/main/datepicker.min.js"></script>
 ```
 
 Attach the picker to any <input> element:
