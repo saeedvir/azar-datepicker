@@ -1,4 +1,4 @@
-/*! Azar Datepicker v1.1.4 – Persian & Gregorian date picker (pure JS) */
+/*! Azar Datepicker v1.1.5 – Persian & Gregorian date picker (pure JS) */
 /*
 * https://github.com/saeedvir/azar-datepicker
 */
@@ -454,7 +454,10 @@
         this._overlayEl.addEventListener('click', function () { self.close(); });
 
         document.addEventListener('click', function (e) {
-            if (self._isOpen && !self._wrapperEl.contains(e.target) && e.target !== self._overlayEl) {
+            if (self._isOpen &&
+                !self._wrapperEl.contains(e.target) &&
+                !self._containerEl.contains(e.target) &&
+                e.target !== self._overlayEl) {
                 self.close();
             }
         });
