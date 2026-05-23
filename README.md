@@ -29,8 +29,8 @@ Just include the files:
 #### CDN:
 jsdelivr:
 ```html
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/saeedvir/azar-datepicker@latest/datepicker.css">
-<script src="https://cdn.jsdelivr.net/gh/saeedvir/azar-datepicker@latest/datepicker.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/saeedvir/azar-datepicker@latest/datepicker.min.css">
+<script src="https://cdn.jsdelivr.net/gh/saeedvir/azar-datepicker@latest/datepicker.min.js"></script>
 ```
 
 GitHub Link:
