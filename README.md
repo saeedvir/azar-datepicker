@@ -25,6 +25,20 @@ Just include the files:
 ```
 
 ### Usage
+
+#### CDN:
+jsdelivr:
+```html
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/saeedvir/azar-datepicker@latest/datepicker.css">
+<script src="https://cdn.jsdelivr.net/gh/saeedvir/azar-datepicker@latest/datepicker.js"></script>
+```
+
+GitHub Link:
+```html
+<link rel="stylesheet" href="https://raw.githubusercontent.com/saeedvir/azar-datepicker/main/datepicker.css">
+<script src="https://raw.githubusercontent.com/saeedvir/azar-datepicker/main/datepicker.js"></script>
+```
+
 Attach the picker to any <input> element:
 
 ```html
