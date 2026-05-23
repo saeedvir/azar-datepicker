@@ -431,6 +431,28 @@
     font-weight: 600;
 }
 
+/* Weekend day (e.g., Friday in Jalali, Sat/Sun in Gregorian) */
+.azar-day-cell.azar-weekend {
+    color: #e53e3e !important;
+    /* vivid red */
+    font-weight: 500;
+}
+
+/* If you want to keep weekend color even when selected, add higher specificity */
+.azar-day-cell.azar-weekend.azar-selected {
+    color: var(--azar-selected-text) !important;
+    /* selected overrides weekend color */
+}
+
+/* Optional: use a CSS variable for customization */
+:root {
+    --azar-weekend-color: #e53e3e;
+}
+
+.azar-day-cell.azar-weekend {
+    color: var(--azar-weekend-color) !important;
+}
+
 /* View transition */
 .azar-view-enter {
     animation: azarFadeInScale 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
