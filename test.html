@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azar Datepicker - Full Test Suite</title>
+    <link rel="stylesheet" href="datepicker.min.css">
+    <script src="datepicker.js"></script>
+    <style>
+        /* ===== TEST PAGE STYLES ===== */
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.8rem;
+        }
+
+        .theme-toggle {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .theme-toggle:hover {
+            background: #2563eb;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .card label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #475569;
+            font-size: 0.9rem;
+        }
+
+        .api-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        button.test-btn {
+            background: #e2e8f0;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        button.test-btn:hover {
+            background: #cbd5e1;
+            transform: translateY(-1px);
+        }
+
+        #console {
+            background: #0f172a;
+            color: #a5f3fc;
+            padding: 16px;
+            border-radius: 10px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.85rem;
+            margin-top: 10px;
+        }
+
+        .log-entry {
+            margin: 4px 0;
+            border-bottom: 1px solid #1e293b;
+            padding-bottom: 2px;
+        }
+
+        .log-entry span {
+            color: #38bdf8;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>📅 Azar Datepicker Test Suite</h1>
+            <button class="theme-toggle" id="toggleDark">🌙 Toggle Dark Mode</button>
+        </header>
+
+        <div class="grid">
+            <div class="card">
+                <label>1. Basic Jalali Date</label>
+                <input type="text" id="basic-jalali" placeholder="Click to pick date">
+            </div>
+            <div class="card">
+                <label>2. Gregorian Date</label>
+                <input type="text" id="basic-gregorian" placeholder="Gregorian mode">
+            </div>
+            <div class="card">
+                <label>3. Datetime Mode</label>
+                <input type="text" id="datetime-mode" placeholder="Date & Time">
+            </div>
+            <div class="card">
+                <label>4. Time Only</label>
+                <input type="text" id="time-mode" placeholder="Select time">
+            </div>
+            <div class="card">
+                <label>5. Custom Format & Placeholder</label>
+                <input type="text" id="custom-format" placeholder="DD MMMM YYYY">
+            </div>
+            <div class="card">
+                <label>6. Min/Max Date (1403/01 to 1403/12)</label>
+                <input type="text" id="min-max" placeholder="Restricted range">
+            </div>
+            <div class="card">
+                <label>7. Callbacks (Watch Console Below)</label>
+                <input type="text" id="callbacks" placeholder="Triggers events">
+            </div>
+            <div class="card">
+                <label>8. Auto-Init via Data Attributes</label>
+                <input type="text" data-azar-datepicker data-azar-calendar="jalali" data-azar-mode="datetime"
+                    data-azar-input-format="YYYY/MM/DD HH:mm" placeholder="Auto initialized">
+            </div>
+        </div>
+
+        <div class="api-panel">
+            <h3 style="margin-top:0;">🛠️ API Controls (Target: Basic Jalali)</h3>
+            <div class="btn-group">
+                <button class="test-btn" id="api-get">getValue()</button>
+                <button class="test-btn" id="api-set">setValue({year:1404, month:1, day:1})</button>
+                <button class="test-btn" id="api-setstr">setValueFromString('1403/05/10 14:30')</button>
+                <button class="test-btn" id="api-toggle-cal">setCalendar() [Toggle]</button>
+                <button class="test-btn" id="api-open">open()</button>
+                <button class="test-btn" id="api-close">close()</button>
+                <button class="test-btn" id="api-refresh">refresh()</button>
+                <button class="test-btn" id="api-destroy">destroy()</button>
+                <button class="test-btn" id="api-reinit">Re-Init</button>
+            </div>
+        </div>
+
+        <div class="api-panel">
+            <h3 style="margin-top:0;">📟 Event & Callback Log</h3>
+            <div id="console"></div>
+        </div>
+    </div>
+
+    <script>
+
+        // ===== TEST INITIALIZATION & CONTROLS =====
+        function logEvent(type, data) {
+            const consoleEl = document.getElementById('console');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span>[${new Date().toLocaleTimeString()}]</span> <strong>${type}:</strong> ${typeof data === 'object' ? JSON.stringify(data, null, 2) : data}`;
+            consoleEl.appendChild(entry);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // 1. Basic Jalali
+            window.dpBasicJalali = AzarDatepicker.init({ selector: '#basic-jalali', calendar: 'jalali', mode: 'date' });
+            // 2. Gregorian
+            window.dpGregorian = AzarDatepicker.init({ selector: '#basic-gregorian', calendar: 'gregorian', mode: 'date' });
+            // 3. Datetime
+            window.dpDateTime = AzarDatepicker.init({ selector: '#datetime-mode', mode: 'datetime', inputFormat: 'YYYY/MM/DD HH:mm' });
+            // 4. Time Only
+            window.dpTimeOnly = AzarDatepicker.init({ selector: '#time-mode', mode: 'time' });
+            // 5. Custom Format
+            window.dpCustom = AzarDatepicker.init({ selector: '#custom-format', calendar: 'jalali', mode: 'date', inputFormat: 'DD MMMM YYYY', placeholder: 'Day Month Year' });
+            // 6. Min/Max
+            window.dpMinMax = AzarDatepicker.init({ selector: '#min-max', minDate: { year: 1403, month: 1, day: 1 }, maxDate: { year: 1403, month: 12, day: 29 } });
+            // 7. Callbacks
+            window.dpCallbacks = AzarDatepicker.init({
+                selector: '#callbacks',
+                onSelect: (d) => logEvent('onSelect', d),
+                onChange: (d) => logEvent('onChange', d),
+                onClear: () => logEvent('onClear', 'Value cleared'),
+                onLoad: () => logEvent('onLoad', 'Instance loaded')
+            });
+
+            // API Controls
+            document.getElementById('api-get').addEventListener('click', () => logEvent('getValue()', window.dpBasicJalali.getValue()));
+            document.getElementById('api-set').addEventListener('click', () => { window.dpBasicJalali.setValue({ year: 1404, month: 1, day: 1 }); logEvent('setValue()', 'Set to 1404/01/01'); });
+            document.getElementById('api-setstr').addEventListener('click', () => { window.dpBasicJalali.setValueFromString('1403/05/10 14:30'); logEvent('setValueFromString()', 'Set to 1403/05/10 14:30'); });
+            document.getElementById('api-toggle-cal').addEventListener('click', () => { window.dpBasicJalali._toggleCalendar(); logEvent('setCalendar()', 'Toggled to ' + window.dpBasicJalali.getCalendar()); });
+            document.getElementById('api-open').addEventListener('click', () => window.dpBasicJalali.open());
+            document.getElementById('api-close').addEventListener('click', () => window.dpBasicJalali.close());
+            document.getElementById('api-refresh').addEventListener('click', () => { window.dpBasicJalali.refresh(); logEvent('refresh()', 'UI refreshed'); });
+            document.getElementById('api-destroy').addEventListener('click', () => { window.dpBasicJalali.destroy(); window.dpBasicJalali = null; logEvent('destroy()', 'Instance destroyed'); });
+            document.getElementById('api-reinit').addEventListener('click', () => {
+                if (window.dpBasicJalali) return logEvent('re-init', 'Already exists');
+                window.dpBasicJalali = AzarDatepicker.init({ selector: '#basic-jalali', calendar: 'jalali', mode: 'date' });
+                logEvent('re-init', 'New instance created');
+            });
+
+            // Dark Mode Toggle
+            document.getElementById('toggleDark').addEventListener('click', () => {
+                const html = document.documentElement;
+                const isDark = html.getAttribute('data-theme') === 'dark';
+                html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+                // Refresh all open instances
+                [window.dpBasicJalali, window.dpGregorian, window.dpDateTime, window.dpTimeOnly, window.dpCustom, window.dpMinMax, window.dpCallbacks].forEach(dp => dp && dp.refresh());
+                logEvent('Theme', isDark ? 'Switched to Light' : 'Switched to Dark');
+            });
+        });
+    </script>
+</body>
+
+</html>
