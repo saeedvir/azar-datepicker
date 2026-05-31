@@ -1,4 +1,4 @@
-/*! Azar Datepicker v1.1.5 – Persian & Gregorian date picker (pure JS) */
+/*! Azar Datepicker v1.1.6 – Persian & Gregorian date picker (pure JS) */
 /*
 * https://github.com/saeedvir/azar-datepicker
 */
@@ -420,23 +420,18 @@
 
     AzarDatepicker.prototype._bindEvents = function () {
         var self = this;
-
-        // Clear button
         if (this._clearBtn) {
-            this._clearBtn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                self._clear();
-            });
+            this._clearBtn.addEventListener('click', function (e) { e.stopPropagation(); self._clear(); });
         }
 
         this.inputEl.addEventListener('click', function (e) {
             e.stopPropagation();
             if (!self._containerEl) return;
-            if (self._isOpen) { self.close(); }
-            else { self._detectMobile(); self.open(); }
+            self._isOpen ? self.close() : self.open();
         });
 
         this._containerEl.addEventListener('click', function (e) {
+            e.preventDefault(); // Prevent form submission if inside <form>
             var target = e.target;
             var action = target.getAttribute('data-action') || (target.closest('[data-action]') ? target.closest('[data-action]').getAttribute('data-action') : null);
 
@@ -449,18 +444,11 @@
                         day: parseInt(target.getAttribute('data-day'))
                     };
                 }
-                if (target.classList.contains('azar-month-cell')) {
-                    action = 'select-month';
-                    target._monthData = parseInt(target.getAttribute('data-month'));
-                }
-                if (target.classList.contains('azar-year-cell')) {
-                    action = 'select-year';
-                    target._yearData = parseInt(target.getAttribute('data-year'));
-                }
+                if (target.classList.contains('azar-month-cell')) { action = 'select-month'; target._monthData = parseInt(target.getAttribute('data-month')); }
+                if (target.classList.contains('azar-year-cell')) { action = 'select-year'; target._yearData = parseInt(target.getAttribute('data-year')); }
             }
 
             if (!action) return;
-
             switch (action) {
                 case 'prev': self._navigate(-1); break;
                 case 'next': self._navigate(1); break;
@@ -480,10 +468,7 @@
         this._overlayEl.addEventListener('click', function () { self.close(); });
 
         document.addEventListener('click', function (e) {
-            if (self._isOpen &&
-                !self._wrapperEl.contains(e.target) &&
-                !self._containerEl.contains(e.target) &&
-                e.target !== self._overlayEl) {
+            if (self._isOpen && !self._wrapperEl.contains(e.target) && !self._containerEl.contains(e.target) && e.target !== self._overlayEl) {
                 self.close();
             }
         });
@@ -720,24 +705,24 @@
 
     AzarDatepicker.prototype._adjustTime = function (dh, dm) {
         if (!this._selectedDate) {
-            this._selectedDate = {
-                year: this._cursorDate.year, month: this._cursorDate.month, day: this._cursorDate.day,
-                hour: this._cursorDate.hour || 0, minute: this._cursorDate.minute || 0
-            };
+            this._selectedDate = { year: this._cursorDate.year, month: this._cursorDate.month, day: this._cursorDate.day, hour: 0, minute: 0 };
         }
         var h = (this._selectedDate.hour || 0) + dh;
         var m = (this._selectedDate.minute || 0) + dm;
-        if (m >= 60) { m -= 60; h++; }
-        if (m < 0) { m += 60; h--; }
-        if (h >= 24) h -= 24;
-        if (h < 0) h += 24;
+
+        // Safe modulo wrapping
+        h = ((h % 24) + 24) % 24;
+        m = ((m % 60) + 60) % 60;
+
         this._selectedDate.hour = h;
         this._selectedDate.minute = m;
         this._cursorDate.hour = h;
         this._cursorDate.minute = m;
+
         this._updateTimeDisplay();
         this._updateInputDisplay();
-        this._fireChange();   // no onSelect for time adjustments
+        this._fireChange();
+        this._fireSelect();
     };
 
     AzarDatepicker.prototype._getDaysInMonth = function (year, month) {
