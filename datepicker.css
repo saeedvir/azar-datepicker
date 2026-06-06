@@ -1,4 +1,4 @@
-/*! Azar Datepicker v1.1.6 – Persian & Gregorian date picker (pure JS) */
+/*! Azar Datepicker v1.2.0 – Persian & Gregorian date picker (pure JS) */
 /*
 * https://github.com/saeedvir/azar-datepicker
 */
@@ -26,33 +26,11 @@
     --azar-weekday-text: #6b7280;
     --azar-outside-text: #d1d5db;
     --azar-modal-z: 10550;
-    /* was 9999 */
     --azar-font: 'Segoe UI', 'Roboto', 'Tahoma', system-ui, -apple-system, sans-serif;
     --azar-font-fa: 'Vazirmatn', 'Vazirmatn-Regular', 'Tahoma', 'Segoe UI', system-ui, sans-serif;
+    --azar-weekend-color: #e53e3e;
 }
 
-/* Dark mode: device preference */
-/*@media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]):not([data-bs-theme="light"]) {
-        --azar-bg: #1e1f2b;
-        --azar-surface: #272833;
-        --azar-border: #35374b;
-        --azar-text: #e5e7eb;
-        --azar-text-secondary: #9ca3af;
-        --azar-text-muted: #6b7280;
-        --azar-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
-        --azar-shadow-lg: 0 20px 40px -8px rgba(0, 0, 0, 0.5), 0 12px 16px -8px rgba(0, 0, 0, 0.4);
-        --azar-overlay: rgba(0, 0, 0, 0.7);
-        --azar-primary-light: #2d2f45;
-        --azar-today-bg: #2d2f45;
-        --azar-selected-bg: #6366f1;
-        --azar-selected-text: #ffffff;
-        --azar-hover-bg: #303145;
-        --azar-outside-text: #4b4d63;
-        --azar-weekday-text: #9ca3af;
-    }
-}
-*/
 /* Dark mode: data-theme="dark" */
 :root[data-theme="dark"],
 :root[data-bs-theme="dark"] {
@@ -81,7 +59,6 @@
     font-family: var(--azar-font);
     box-sizing: border-box;
     width: 100%;
-    /* max-width: 320px; */
     max-width: 100%;
 }
 
@@ -368,6 +345,22 @@
     opacity: 0.3;
 }
 
+/* Weekend day */
+.azar-day-cell.azar-weekend {
+    color: var(--azar-weekend-color) !important;
+    font-weight: 500;
+}
+
+/* FIXED: Today on weekend must keep primary brand color, not red */
+.azar-day-cell.azar-today.azar-weekend {
+    color: var(--azar-primary) !important;
+}
+
+/* Selected overrides weekend color */
+.azar-day-cell.azar-weekend.azar-selected {
+    color: var(--azar-selected-text) !important;
+}
+
 /* Month view */
 .azar-view-months {
     display: grid;
@@ -430,28 +423,6 @@
     background: var(--azar-selected-bg);
     color: var(--azar-selected-text);
     font-weight: 600;
-}
-
-/* Weekend day (e.g., Friday in Jalali, Sat/Sun in Gregorian) */
-.azar-day-cell.azar-weekend {
-    color: #e53e3e !important;
-    /* vivid red */
-    font-weight: 500;
-}
-
-/* If you want to keep weekend color even when selected, add higher specificity */
-.azar-day-cell.azar-weekend.azar-selected {
-    color: var(--azar-selected-text) !important;
-    /* selected overrides weekend color */
-}
-
-/* Optional: use a CSS variable for customization */
-:root {
-    --azar-weekend-color: #e53e3e;
-}
-
-.azar-day-cell.azar-weekend {
-    color: var(--azar-weekend-color) !important;
 }
 
 /* View transition */
@@ -597,7 +568,6 @@
 /* ===== RTL Support ===== */
 .azar-datepicker-container[dir="rtl"] .azar-btn-nav {
     transform: scaleX(-1);
-    /* only mirror, no rotation */
 }
 
 .azar-datepicker-container[dir="rtl"] .azar-btn-nav:active {
@@ -609,11 +579,6 @@
 }
 
 /* ===== Clear Button ===== */
-.azar-datepicker-wrapper {
-    position: relative;
-    /* already present – keep it! */
-}
-
 .azar-clear-btn {
     position: absolute;
     top: 50%;
@@ -627,7 +592,6 @@
     padding: 4px;
     border-radius: 50%;
     display: none;
-    /* hidden by default */
     line-height: 1;
     transition: opacity 0.15s ease, transform 0.15s ease;
     z-index: 2;
@@ -642,9 +606,8 @@
     transform: translateY(-50%) scale(0.85);
 }
 
-/* RTL: move to the left side */
-.azar-datepicker-container[dir="rtl"]~.azar-clear-btn,
-.azar-datepicker-wrapper:has(.azar-datepicker-container[dir="rtl"]) .azar-clear-btn {
+/* FIXED: RTL clear button via wrapper class (container is in body, not sibling) */
+.azar-datepicker-wrapper.azar-rtl .azar-clear-btn {
     right: auto;
     left: 10px;
 }
@@ -652,13 +615,37 @@
 /* Adjust input padding to not overlap with the button */
 .azar-datepicker-input {
     padding-right: 34px;
-    /* for LTR */
 }
 
-.azar-datepicker-container[dir="rtl"]~.azar-datepicker-input {
+.azar-datepicker-wrapper.azar-rtl .azar-datepicker-input {
     padding-right: 10px;
     padding-left: 34px;
-    /* for RTL */
+}
+
+/* ===== Reduced Motion ===== */
+@media (prefers-reduced-motion: reduce) {
+
+    .azar-datepicker-container,
+    .azar-datepicker-container.azar-open,
+    .azar-datepicker-container.azar-closing,
+    .azar-datepicker-container.azar-modal,
+    .azar-datepicker-container.azar-modal.azar-open,
+    .azar-datepicker-container.azar-modal.azar-closing,
+    .azar-overlay,
+    .azar-day-cell,
+    .azar-month-cell,
+    .azar-year-cell,
+    .azar-btn-nav,
+    .azar-btn-today,
+    .azar-calendar-toggle,
+    .azar-time-btn,
+    .azar-header-display,
+    .azar-datepicker-input,
+    .azar-clear-btn {
+        transition: none !important;
+        animation: none !important;
+        transform: none !important;
+    }
 }
 
 /* ===== Responsive ===== */
