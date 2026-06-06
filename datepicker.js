@@ -1,6 +1,26 @@
-/*! Azar Datepicker v1.1.6 – Persian & Gregorian date picker (pure JS) */
+/*! Azar Datepicker v1.2.0 – Persian & Gregorian date picker (pure JS) */
 /*
 * https://github.com/saeedvir/azar-datepicker
+*
+* Changelog v1.2.0:
+* - Fixed calendar toggle losing days 29-31
+* - Fixed memory leaks in destroy()
+* - Fixed close/open race condition
+* - Fixed RTL clear-button positioning
+* - Fixed minDate/maxDate not converting on calendar toggle
+* - Fixed _goToToday() bypassing bounds
+* - Fixed setValueFromString() respecting inputFormat
+* - Fixed dateToTotalDays() using consistent timestamps
+* - Fixed today-on-weekend color override
+* - Fixed negative years in year grid
+* - Fixed _navigate() min/max guard for year view
+* - Added deduplication for onChange/onSelect
+* - Added keyboard navigation (arrows, page, home, end, enter, escape)
+* - Added ARIA roles, labels, and live regions
+* - Added focus trap for modal mode
+* - Added horizontal viewport overflow protection
+* - Added MutationObserver for data-theme changes
+* - Added prefers-reduced-motion support
 */
 (function (global) {
     'use strict';
@@ -35,7 +55,6 @@
 
     function jalaliToGregorian(jy, jm, jd) {
         if (jy < 1 || jm < 1 || jm > 12 || jd < 1) return null;
-        // Standard algorithm from jalaali-js (MIT)
         var jy1 = jy + 1595;
         var days = -355668 + 365 * jy1 + Math.floor(jy1 / 33) * 8 + Math.floor(((jy1 % 33) + 3) / 4) + jd;
         if (jm < 7) {
@@ -77,28 +96,108 @@
         if (month === 2) return isGregorianLeap(year) ? 29 : 28;
         return [1, 3, 5, 7, 8, 10, 12].indexOf(month) !== -1 ? 31 : 30;
     }
-    // Convert a date object Jalali day count (no Gregorian dependency)
-    function jalaliToDayNumber(y, m, d) {
-        var years = y - 1;
-        var leapCount = Math.floor((years * 31 + 17) / 128);
-        var days = years * 365 + leapCount;
-        for (var i = 1; i < m; i++) {
-            if (i <= 6) days += 31;
-            else if (i <= 11) days += 30;
-            else days += (isJalaliLeap(y) ? 30 : 29);
-        }
-        days += d - 1;
-        return days;
-    }
+
+    // FIXED: Convert both calendars to Unix timestamps for consistent comparison
     function dateToTotalDays(dateObj, calendar) {
         if (!dateObj) return NaN;
         var y = dateObj.year, m = dateObj.month, d = dateObj.day;
+        var h = dateObj.hour || 0, min = dateObj.minute || 0;
         if (calendar === 'jalali') {
-            return jalaliToDayNumber(y, m, d);
+            var g = jalaliToGregorian(y, m, d);
+            if (!g) return NaN;
+            return new Date(g.gy, g.gm - 1, g.gd, h, min).getTime();
         } else {
-            return new Date(y, m - 1, d).getTime();
+            return new Date(y, m - 1, d, h, min).getTime();
         }
     }
+
+    // Helper: convert a date object between calendars
+    function convertDateObj(dateObj, fromCal, toCal) {
+        if (!dateObj) return null;
+        if (fromCal === toCal) {
+            return { year: dateObj.year, month: dateObj.month, day: dateObj.day, hour: dateObj.hour || 0, minute: dateObj.minute || 0 };
+        }
+        if (toCal === 'jalali') {
+            var j = gregorianToJalali(dateObj.year, dateObj.month, dateObj.day);
+            if (!j) return null;
+            return { year: j.jy, month: j.jm, day: j.jd, hour: dateObj.hour || 0, minute: dateObj.minute || 0 };
+        } else {
+            var g = jalaliToGregorian(dateObj.year, dateObj.month, dateObj.day);
+            if (!g) return null;
+            return { year: g.gy, month: g.gm, day: g.gd, hour: dateObj.hour || 0, minute: dateObj.minute || 0 };
+        }
+    }
+
+    // Helper: parse a date string according to inputFormat
+    function parseDateString(str, format, calendar) {
+        var months = calendar === 'jalali' ? JALALI_MONTHS : GREGORIAN_MONTHS;
+        var monthsShort = calendar === 'jalali' ? JALALI_MONTHS_SHORT : GREGORIAN_MONTHS_SHORT;
+
+        // Build regex by replacing tokens
+        var regex = format
+            .replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
+            .replace(/\bYYYY\b/g, '(\\d{4})')
+            .replace(/\bYY\b/g, '(\\d{2})')
+            .replace(/\bMMMM\b/g, '([^\\s\\d]+)')
+            .replace(/\bMMM\b/g, '([^\\s\\d]+)')
+            .replace(/\bMM\b/g, '(\\d{1,2})')
+            .replace(/\bM\b/g, '(\\d{1,2})')
+            .replace(/\bDD\b/g, '(\\d{1,2})')
+            .replace(/\bD\b/g, '(\\d{1,2})')
+            .replace(/\bHH\b/g, '(\\d{1,2})')
+            .replace(/\bH\b/g, '(\\d{1,2})')
+            .replace(/\bhh\b/g, '(\\d{1,2})')
+            .replace(/\bh\b/g, '(\\d{1,2})')
+            .replace(/\bmm\b/g, '(\\d{2})')
+            .replace(/\bm\b/g, '(\\d{1,2})')
+            .replace(/\bA\b/g, '(AM|PM)')
+            .replace(/\ba\b/g, '(am|pm)');
+
+        var match = str.match(new RegExp('^' + regex + '$'));
+        if (!match) return null;
+
+        var tokenRegex = /\b(YYYY|YY|MMMM|MMM|MM|M|DD|D|HH|H|hh|h|mm|m|A|a)\b/g;
+        var tokens = [];
+        var m;
+        while ((m = tokenRegex.exec(format)) !== null) {
+            tokens.push(m[1]);
+        }
+
+        var result = { year: 0, month: 0, day: 0, hour: 0, minute: 0 };
+        for (var i = 0; i < tokens.length; i++) {
+            var val = match[i + 1];
+            if (!val) continue;
+            switch (tokens[i]) {
+                case 'YYYY': result.year = parseInt(val, 10); break;
+                case 'YY': result.year = parseInt(val, 10) + (parseInt(val, 10) < 50 ? 2000 : 1900); break;
+                case 'MM':
+                case 'M': result.month = parseInt(val, 10); break;
+                case 'DD':
+                case 'D': result.day = parseInt(val, 10); break;
+                case 'HH':
+                case 'H': result.hour = parseInt(val, 10); break;
+                case 'hh':
+                case 'h': result.hour = parseInt(val, 10); break;
+                case 'mm':
+                case 'm': result.minute = parseInt(val, 10); break;
+                case 'A':
+                case 'a':
+                    if (/PM|pm/.test(val) && result.hour < 12) result.hour += 12;
+                    if (/AM|am/.test(val) && result.hour === 12) result.hour = 0;
+                    break;
+                case 'MMMM':
+                    var idx = months.indexOf(val);
+                    if (idx !== -1) result.month = idx + 1;
+                    break;
+                case 'MMM':
+                    var idx2 = monthsShort.indexOf(val);
+                    if (idx2 !== -1) result.month = idx2 + 1;
+                    break;
+            }
+        }
+        return result;
+    }
+
     // ========== PERSIAN LOCALISATION (defaults, overridable) ==========
     var JALALI_MONTHS = [
         'فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور',
@@ -125,13 +224,13 @@
     var AzarDatepicker = function (options) {
         this._defaults = {
             selector: null,
-            mode: 'date',          // 'date' | 'time' | 'datetime'
-            calendar: 'jalali',    // 'jalali' | 'gregorian'
+            mode: 'date',
+            calendar: 'jalali',
             autoLoad: false,
             inputFormat: null,
             outputFormat: null,
             placeholder: null,
-            onLoad: null,   // callback(datepickerInstance) after initial setup
+            onLoad: null,
             onSelect: null,
             onChange: null,
             onClear: null,
@@ -142,16 +241,12 @@
             closeOnSelect: true,
             showCalendarToggle: true,
             showClearButton: true,
-            // Custom localisation
             jalaliMonths: null,
             jalaliMonthsShort: null,
             jalaliWeekDaysShort: null
         };
 
         this.options = {};
-
-        // REMOVED the faulty autoload block – normal merging loop handles autoLoad correctly
-
         for (var key in this._defaults) {
             if (this._defaults.hasOwnProperty(key)) {
                 this.options[key] = (options && options[key] !== undefined) ? options[key] : this._defaults[key];
@@ -173,12 +268,10 @@
             this.options.rtl = (this.options.calendar === 'jalali');
         }
 
-        // Apply custom localisation overrides
         if (this.options.jalaliMonths) JALALI_MONTHS = this.options.jalaliMonths;
         if (this.options.jalaliMonthsShort) JALALI_MONTHS_SHORT = this.options.jalaliMonthsShort;
         if (this.options.jalaliWeekDaysShort) JALALI_WEEKDAYS_SHORT = this.options.jalaliWeekDaysShort;
 
-        // Auto formats
         if (!this.options.inputFormat) {
             if (this.options.mode === 'time') {
                 this.options.inputFormat = 'HH:mm';
@@ -192,7 +285,6 @@
             this.options.outputFormat = this.options.inputFormat;
         }
 
-        // State
         this._calendar = this.options.calendar;
         this._view = 'days';
         this._selectedDate = null;
@@ -204,6 +296,12 @@
         this._containerEl = null;
         this._overlayEl = null;
         this._closingTimeout = null;
+        this._handlers = {};
+        this._prefersDarkMql = null;
+        this._themeObserver = null;
+        this._lastChangeKey = null;
+        this._lastSelectKey = null;
+        this._id = 'azar-' + Math.random().toString(36).substr(2, 9);
 
         this._init();
     };
@@ -219,15 +317,12 @@
         if (this.options.autoLoad) {
             this._setTodaySilently();
         }
-        // Fire onLoad callback if provided
         if (typeof this.options.onLoad === 'function') {
             this.options.onLoad(this);
         }
     };
 
     AzarDatepicker.prototype._getWeekdayIndex = function (year, month, day) {
-        // Returns 0..6 where 0 = Saturday (Jalali) or Sunday (Gregorian)?
-        // We'll return JavaScript's getDay() (0=Sunday, 6=Saturday) for consistency.
         var cal = this._calendar;
         var date;
         if (cal === 'jalali') {
@@ -237,16 +332,14 @@
         } else {
             date = new Date(year, month - 1, day);
         }
-        return date.getDay(); // 0=Sunday, 1=Monday ... 6=Saturday
+        return date.getDay();
     };
 
     AzarDatepicker.prototype._isWeekend = function (weekdayIndex) {
         var cal = this._calendar;
         if (cal === 'jalali') {
-            // Friday is weekend → weekdayIndex 5 (since Sunday=0 => Friday=5)
             return weekdayIndex === 5;
         } else {
-            // Gregorian: Saturday and Sunday are weekend
             return weekdayIndex === 0 || weekdayIndex === 6;
         }
     };
@@ -266,6 +359,7 @@
             this._cursorDate = { year: gy, month: gm, day: gd, hour: hour, minute: minute };
         }
 
+        // FIXED: respect both minDate and maxDate
         if (this.options.minDate) {
             var minD = dateToTotalDays(this.options.minDate, this._calendar);
             var selD = dateToTotalDays(this._selectedDate, this._calendar);
@@ -277,14 +371,39 @@
                     hour: this.options.minDate.hour || 0,
                     minute: this.options.minDate.minute || 0
                 };
-                this._cursorDate = { ...this._selectedDate };
+                this._cursorDate = {
+                    year: this.options.minDate.year,
+                    month: this.options.minDate.month,
+                    day: this.options.minDate.day,
+                    hour: this.options.minDate.hour || 0,
+                    minute: this.options.minDate.minute || 0
+                };
+            }
+        }
+        if (this.options.maxDate) {
+            var maxD = dateToTotalDays(this.options.maxDate, this._calendar);
+            var selD2 = dateToTotalDays(this._selectedDate, this._calendar);
+            if (!isNaN(maxD) && !isNaN(selD2) && selD2 > maxD) {
+                this._selectedDate = {
+                    year: this.options.maxDate.year,
+                    month: this.options.maxDate.month,
+                    day: this.options.maxDate.day,
+                    hour: this.options.maxDate.hour || 0,
+                    minute: this.options.maxDate.minute || 0
+                };
+                this._cursorDate = {
+                    year: this.options.maxDate.year,
+                    month: this.options.maxDate.month,
+                    day: this.options.maxDate.day,
+                    hour: this.options.maxDate.hour || 0,
+                    minute: this.options.maxDate.minute || 0
+                };
             }
         }
 
         this._view = 'days';
         this._updateInputDisplay();
         this._renderView();
-        // Intentionally no _fireChange / _fireSelect
     };
 
     AzarDatepicker.prototype._detectDarkMode = function () {
@@ -311,6 +430,7 @@
         var self = this;
         var wrapper = document.createElement('div');
         wrapper.className = 'azar-datepicker-wrapper';
+        if (this.options.rtl) wrapper.classList.add('azar-rtl');
         this.inputEl.parentNode.insertBefore(wrapper, this.inputEl);
         wrapper.appendChild(this.inputEl);
         this.inputEl.classList.add('azar-datepicker-input');
@@ -319,26 +439,31 @@
         }
         this.inputEl.setAttribute('readonly', 'readonly');
         this.inputEl.setAttribute('autocomplete', 'off');
+        this.inputEl.setAttribute('aria-haspopup', 'dialog');
+        this.inputEl.setAttribute('aria-expanded', 'false');
+        this.inputEl.setAttribute('aria-controls', this._id);
         this._wrapperEl = wrapper;
 
-        // ---- Clear button ----
         if (this.options.showClearButton) {
             var clearBtn = document.createElement('button');
             clearBtn.className = 'azar-clear-btn';
             clearBtn.setAttribute('type', 'button');
             clearBtn.innerHTML = '✕';
             clearBtn.setAttribute('aria-label', 'Clear date');
-            clearBtn.style.display = 'inline';
+            clearBtn.style.display = 'none';
             wrapper.appendChild(clearBtn);
             this._clearBtn = clearBtn;
         }
 
         var container = document.createElement('div');
         container.className = 'azar-datepicker-container';
+        container.setAttribute('id', this._id);
+        container.setAttribute('role', 'dialog');
+        container.setAttribute('aria-label', this._calendar === 'jalali' ? 'انتخاب تاریخ' : 'Choose date');
+        container.setAttribute('aria-modal', 'false');
         if (this.options.rtl) container.setAttribute('dir', 'rtl');
         container.setAttribute('data-calendar', this._calendar);
         container.innerHTML = this._renderFullHTML();
-        // wrapper.appendChild(container);
         document.body.appendChild(container);
         this._containerEl = container;
 
@@ -347,7 +472,6 @@
         document.body.appendChild(overlay);
         this._overlayEl = overlay;
 
-        // Store a flag so we know container is not inside wrapper
         this._containerInBody = true;
     };
 
@@ -366,18 +490,18 @@
 
         var html = '';
         html += '<div class="azar-datepicker-header">';
-        html += '<button class="azar-btn-nav azar-btn-prev" type="button" data-action="prev">' + prevBtn + '</button>';
-        html += '<div class="azar-header-display" data-action="switch-view"><span class="azar-month-name"></span>&nbsp;<span class="azar-year"></span></div>';
-        html += '<button class="azar-btn-nav azar-btn-next" type="button" data-action="next">' + nextBtn + '</button>';
+        html += '<button class="azar-btn-nav azar-btn-prev" type="button" data-action="prev" aria-label="Previous">' + prevBtn + '</button>';
+        html += '<div class="azar-header-display" data-action="switch-view" role="button" tabindex="0"><span class="azar-month-name"></span>&nbsp;<span class="azar-year"></span></div>';
+        html += '<button class="azar-btn-nav azar-btn-next" type="button" data-action="next" aria-label="Next">' + nextBtn + '</button>';
         html += '</div>';
 
         html += '<div class="azar-datepicker-body">';
-        html += '<div class="azar-view-days" data-view="days">';
-        html += '<div class="azar-weekdays">' + wkdsHTML + '</div>';
+        html += '<div class="azar-view-days" data-view="days" role="grid">';
+        html += '<div class="azar-weekdays" role="row">' + wkdsHTML + '</div>';
         html += '<div class="azar-days-grid"></div>';
         html += '</div>';
-        html += '<div class="azar-view-months" data-view="months" style="display:none;"></div>';
-        html += '<div class="azar-view-years" data-view="years" style="display:none;"></div>';
+        html += '<div class="azar-view-months" data-view="months" style="display:none;" role="grid"></div>';
+        html += '<div class="azar-view-years" data-view="years" style="display:none;" role="grid"></div>';
         html += '</div>';
 
         html += '<div class="azar-datepicker-footer">';
@@ -389,9 +513,9 @@
         }
         if (mode === 'time' || mode === 'datetime') {
             html += '<div class="azar-time-picker">';
-            html += '<div class="azar-time-col"><button class="azar-time-btn" data-action="inc-hour">▲</button><span class="azar-time-value azar-hour-val">00</span><button class="azar-time-btn" data-action="dec-hour">▼</button><label>' + hourLabel + '</label></div>';
+            html += '<div class="azar-time-col"><button class="azar-time-btn" type="button" data-action="inc-hour" aria-label="Increase hour">▲</button><span class="azar-time-value azar-hour-val" aria-live="polite">00</span><button class="azar-time-btn" type="button" data-action="dec-hour" aria-label="Decrease hour">▼</button><label>' + hourLabel + '</label></div>';
             html += '<span class="azar-time-sep">:</span>';
-            html += '<div class="azar-time-col"><button class="azar-time-btn" data-action="inc-min">▲</button><span class="azar-time-value azar-min-val">00</span><button class="azar-time-btn" data-action="dec-min">▼</button><label>' + minuteLabel + '</label></div>';
+            html += '<div class="azar-time-col"><button class="azar-time-btn" type="button" data-action="inc-min" aria-label="Increase minute">▲</button><span class="azar-time-value azar-min-val" aria-live="polite">00</span><button class="azar-time-btn" type="button" data-action="dec-min" aria-label="Decrease minute">▼</button><label>' + minuteLabel + '</label></div>';
             html += '</div>';
         }
         html += '</div>';
@@ -420,18 +544,15 @@
 
     AzarDatepicker.prototype._bindEvents = function () {
         var self = this;
-        if (this._clearBtn) {
-            this._clearBtn.addEventListener('click', function (e) { e.stopPropagation(); self._clear(); });
-        }
 
-        this.inputEl.addEventListener('click', function (e) {
+        this._handlers.clearClick = function (e) { e.stopPropagation(); self._clear(); };
+        this._handlers.inputClick = function (e) {
             e.stopPropagation();
             if (!self._containerEl) return;
             self._isOpen ? self.close() : self.open();
-        });
-
-        this._containerEl.addEventListener('click', function (e) {
-            e.preventDefault(); // Prevent form submission if inside <form>
+        };
+        this._handlers.containerClick = function (e) {
+            e.preventDefault();
             var target = e.target;
             var action = target.getAttribute('data-action') || (target.closest('[data-action]') ? target.closest('[data-action]').getAttribute('data-action') : null);
 
@@ -463,37 +584,149 @@
                 case 'inc-min': self._adjustTime(0, 1); break;
                 case 'dec-min': self._adjustTime(0, -1); break;
             }
-        });
-
-        this._overlayEl.addEventListener('click', function () { self.close(); });
-
-        document.addEventListener('click', function (e) {
+        };
+        this._handlers.overlayClick = function () { self.close(); };
+        this._handlers.docClick = function (e) {
             if (self._isOpen && !self._wrapperEl.contains(e.target) && !self._containerEl.contains(e.target) && e.target !== self._overlayEl) {
                 self.close();
             }
-        });
-
-        document.addEventListener('keydown', function (e) {
-            if (self._isOpen && e.key === 'Escape') { self.close(); self.inputEl.blur(); }
-        });
-
-        window.addEventListener('resize', function () {
+        };
+        this._handlers.docKey = function (e) { self._handleDocKey(e); };
+        this._handlers.resize = function () {
             var wasMobile = self._isMobile;
             self._detectMobile();
             if (wasMobile !== self._isMobile && self._isOpen) {
                 self.close();
                 setTimeout(function () { self.open(); }, 150);
+            } else if (self._isOpen && !self._isMobile) {
+                self._positionContainer();
             }
-        });
+        };
+
+        if (this._clearBtn) {
+            this._clearBtn.addEventListener('click', this._handlers.clearClick);
+        }
+        this.inputEl.addEventListener('click', this._handlers.inputClick);
+        this._containerEl.addEventListener('click', this._handlers.containerClick);
+        this._overlayEl.addEventListener('click', this._handlers.overlayClick);
+        document.addEventListener('click', this._handlers.docClick);
+        document.addEventListener('keydown', this._handlers.docKey);
+        window.addEventListener('resize', this._handlers.resize);
 
         if (window.matchMedia) {
-            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
+            var mql = window.matchMedia('(prefers-color-scheme: dark)');
+            this._handlers.prefersDark = function (e) {
                 if (self.options.darkMode === 'auto') {
-                    self._detectDarkMode();
+                    self._isDark = e.matches;
                     self._applyDarkMode();
                 }
-            });
+            };
+            mql.addEventListener('change', this._handlers.prefersDark);
+            this._prefersDarkMql = mql;
         }
+
+        // ADDED: Watch for data-theme / data-bs-theme changes
+        this._themeObserver = new MutationObserver(function (mutations) {
+            mutations.forEach(function (mutation) {
+                if (mutation.attributeName === 'data-theme' || mutation.attributeName === 'data-bs-theme') {
+                    if (self.options.darkMode === 'auto') {
+                        self._detectDarkMode();
+                        self._applyDarkMode();
+                    }
+                }
+            });
+        });
+        this._themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-bs-theme'] });
+    };
+
+    // ADDED: Keyboard navigation & focus trap
+    AzarDatepicker.prototype._handleDocKey = function (e) {
+        if (!this._isOpen) return;
+
+        // Focus trap for modal
+        if (this._isMobile && e.key === 'Tab') {
+            var focusables = this._containerEl.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+            if (focusables.length === 0) return;
+            var first = focusables[0];
+            var last = focusables[focusables.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+            return;
+        }
+
+        if (e.key === 'Escape') {
+            this.close();
+            this.inputEl.blur();
+            return;
+        }
+
+        if (this._view !== 'days') return;
+
+        var handled = true;
+        var c = this._cursorDate;
+        var newYear = c.year, newMonth = c.month, newDay = c.day || 1;
+
+        switch (e.key) {
+            case 'ArrowLeft':
+                if (this.options.rtl) { newDay++; } else { newDay--; }
+                break;
+            case 'ArrowRight':
+                if (this.options.rtl) { newDay--; } else { newDay++; }
+                break;
+            case 'ArrowUp': newDay -= 7; break;
+            case 'ArrowDown': newDay += 7; break;
+            case 'PageUp': newMonth--; break;
+            case 'PageDown': newMonth++; break;
+            case 'Home': newDay = 1; break;
+            case 'End': newDay = this._getDaysInMonth(newYear, newMonth); break;
+            case 'Enter':
+                if (this._selectedDate && this._selectedDate.year === c.year && this._selectedDate.month === c.month && this._selectedDate.day === c.day) {
+                    this.close();
+                } else {
+                    this._onDaySelect({ year: c.year, month: c.month, day: c.day || 1 });
+                }
+                return;
+            default: handled = false;
+        }
+
+        if (!handled) return;
+        e.preventDefault();
+
+        while (newDay < 1) {
+            newMonth--;
+            if (newMonth < 1) { newMonth = 12; newYear--; }
+            if (newYear < 1) { newYear = 1; newMonth = 1; newDay = 1; break; }
+            newDay += this._getDaysInMonth(newYear, newMonth);
+        }
+        while (newDay > this._getDaysInMonth(newYear, newMonth)) {
+            newDay -= this._getDaysInMonth(newYear, newMonth);
+            newMonth++;
+            if (newMonth > 12) { newMonth = 1; newYear++; }
+        }
+        if (newYear < 1) newYear = 1;
+
+        var testDate = { year: newYear, month: newMonth, day: newDay, hour: 0, minute: 0 };
+        if (this.options.minDate) {
+            var minD = dateToTotalDays(this.options.minDate, this._calendar);
+            var testD = dateToTotalDays(testDate, this._calendar);
+            if (!isNaN(minD) && !isNaN(testD) && testD < minD) return;
+        }
+        if (this.options.maxDate) {
+            var maxD = dateToTotalDays(this.options.maxDate, this._calendar);
+            var testD2 = dateToTotalDays(testDate, this._calendar);
+            if (!isNaN(maxD) && !isNaN(testD2) && testD2 > maxD) return;
+        }
+
+        this._cursorDate = { year: newYear, month: newMonth, day: newDay, hour: c.hour || 0, minute: c.minute || 0 };
+        this._renderView();
+
+        var cell = this._containerEl.querySelector('.azar-day-cell[data-year="' + newYear + '"][data-month="' + newMonth + '"][data-day="' + newDay + '"]:not(.azar-outside):not(.azar-disabled)');
+        if (cell) cell.focus();
     };
 
     AzarDatepicker.prototype._navigate = function (delta) {
@@ -514,14 +747,21 @@
         }
         if (this._cursorDate.year < 1) this._cursorDate.year = 1;
 
-        // Min/max navigation guard
+        // FIXED: Min/max navigation guard with year-view awareness
         if (this.options.minDate) {
             var minD = dateToTotalDays(this.options.minDate, this._calendar);
-            var lastDay = this._getDaysInMonth(this._cursorDate.year, this._cursorDate.month);
-            var curLast = dateToTotalDays(
-                { year: this._cursorDate.year, month: this._cursorDate.month, day: lastDay },
-                this._calendar
-            );
+            var checkDate;
+            if (this._view === 'years') {
+                if (this._cursorDate.year < this.options.minDate.year) {
+                    this._cursorDate = oldCursor;
+                    return;
+                }
+                checkDate = { year: this._cursorDate.year, month: this._cursorDate.month, day: 1 };
+            } else {
+                var lastDay = this._getDaysInMonth(this._cursorDate.year, this._cursorDate.month);
+                checkDate = { year: this._cursorDate.year, month: this._cursorDate.month, day: lastDay };
+            }
+            var curLast = dateToTotalDays(checkDate, this._calendar);
             if (!isNaN(minD) && !isNaN(curLast) && curLast < minD) {
                 this._cursorDate = oldCursor;
                 return;
@@ -529,10 +769,17 @@
         }
         if (this.options.maxDate) {
             var maxD = dateToTotalDays(this.options.maxDate, this._calendar);
-            var curFirst = dateToTotalDays(
-                { year: this._cursorDate.year, month: this._cursorDate.month, day: 1 },
-                this._calendar
-            );
+            var checkDate2;
+            if (this._view === 'years') {
+                if (this._cursorDate.year > this.options.maxDate.year) {
+                    this._cursorDate = oldCursor;
+                    return;
+                }
+                checkDate2 = { year: this._cursorDate.year, month: this._cursorDate.month, day: 1 };
+            } else {
+                checkDate2 = { year: this._cursorDate.year, month: this._cursorDate.month, day: 1 };
+            }
+            var curFirst = dateToTotalDays(checkDate2, this._calendar);
             if (!isNaN(maxD) && !isNaN(curFirst) && curFirst > maxD) {
                 this._cursorDate = oldCursor;
                 return;
@@ -554,19 +801,49 @@
         var gy = now.getFullYear(), gm = now.getMonth() + 1, gd = now.getDate();
         var hour = now.getHours(), minute = now.getMinutes();
 
+        var newDate;
         if (this._calendar === 'jalali') {
             var j = gregorianToJalali(gy, gm, gd);
             if (!j) j = gregorianToJalali(2024, 1, 1);
-            this._selectedDate = { year: j.jy, month: j.jm, day: j.jd, hour: hour, minute: minute };
-            this._cursorDate = { year: j.jy, month: j.jm, day: j.jd, hour: hour, minute: minute };
+            newDate = { year: j.jy, month: j.jm, day: j.jd, hour: hour, minute: minute };
         } else {
-            this._selectedDate = { year: gy, month: gm, day: gd, hour: hour, minute: minute };
-            this._cursorDate = { year: gy, month: gm, day: gd, hour: hour, minute: minute };
+            newDate = { year: gy, month: gm, day: gd, hour: hour, minute: minute };
         }
+
+        // FIXED: Min/Max validation (same as _setTodaySilently)
+        if (this.options.minDate) {
+            var minD = dateToTotalDays(this.options.minDate, this._calendar);
+            var selD = dateToTotalDays(newDate, this._calendar);
+            if (!isNaN(minD) && !isNaN(selD) && selD < minD) {
+                newDate = {
+                    year: this.options.minDate.year,
+                    month: this.options.minDate.month,
+                    day: this.options.minDate.day,
+                    hour: this.options.minDate.hour || 0,
+                    minute: this.options.minDate.minute || 0
+                };
+            }
+        }
+        if (this.options.maxDate) {
+            var maxD = dateToTotalDays(this.options.maxDate, this._calendar);
+            var selD2 = dateToTotalDays(newDate, this._calendar);
+            if (!isNaN(maxD) && !isNaN(selD2) && selD2 > maxD) {
+                newDate = {
+                    year: this.options.maxDate.year,
+                    month: this.options.maxDate.month,
+                    day: this.options.maxDate.day,
+                    hour: this.options.maxDate.hour || 0,
+                    minute: this.options.maxDate.minute || 0
+                };
+            }
+        }
+
+        this._selectedDate = newDate;
+        this._cursorDate = { year: newDate.year, month: newDate.month, day: newDate.day, hour: newDate.hour, minute: newDate.minute };
         this._view = 'days';
         this._renderView();
         this._updateInputDisplay();
-        this._fireChange();     // only onChange, not onSelect
+        this._fireChange();
         if (this.options.closeOnSelect && this.options.mode !== 'time') {
             this.close();
         }
@@ -578,51 +855,76 @@
         var cur = this._cursorDate;
         var sel = this._selectedDate;
 
-        // Convert cursor
+        // FIXED: Convert cursor — preserve real day, clamp AFTER conversion
+        var sourceDay = Math.max(1, cur.day || 1);
         var newCursor = null;
         if (newCal === 'jalali') {
-            var j = gregorianToJalali(cur.year, cur.month, Math.max(1, Math.min(28, cur.day || 1)));
+            var j = gregorianToJalali(cur.year, cur.month, sourceDay);
             if (!j) {
                 var now = new Date();
                 j = gregorianToJalali(now.getFullYear(), now.getMonth() + 1, now.getDate());
                 if (!j) j = { jy: 1403, jm: 1, jd: 1 };
             }
             newCursor = {
-                year: j.jy, month: j.jm, day: Math.min(j.jd, jalaliDaysInMonth(j.jy, j.jm)),
+                year: j.jy, month: j.jm,
+                day: Math.min(sourceDay, jalaliDaysInMonth(j.jy, j.jm)),
                 hour: cur.hour || 0, minute: cur.minute || 0
             };
         } else {
-            var g = jalaliToGregorian(cur.year, cur.month, Math.max(1, Math.min(28, cur.day || 1)));
+            var g = jalaliToGregorian(cur.year, cur.month, sourceDay);
             if (!g) {
                 var now = new Date();
                 g = { gy: now.getFullYear(), gm: now.getMonth() + 1, gd: now.getDate() };
             }
             newCursor = {
-                year: g.gy, month: g.gm, day: Math.min(g.gd, gregorianDaysInMonth(g.gy, g.gm)),
+                year: g.gy, month: g.gm,
+                day: Math.min(sourceDay, gregorianDaysInMonth(g.gy, g.gm)),
                 hour: cur.hour || 0, minute: cur.minute || 0
             };
         }
         if (newCursor.year < 1) newCursor.year = 1;
         newCursor.day = Math.min(newCursor.day, self._getDaysInMonth(newCursor.year, newCursor.month));
 
-        // Convert selected
+        // FIXED: Convert selected date with real day preservation
         var newSelected = null;
         if (sel) {
+            var sourceSelDay = Math.max(1, sel.day || 1);
             if (newCal === 'jalali') {
-                var js = gregorianToJalali(sel.year, sel.month, sel.day);
-                if (js) newSelected = { year: js.jy, month: js.jm, day: js.jd, hour: sel.hour || 0, minute: sel.minute || 0 };
+                var js = gregorianToJalali(sel.year, sel.month, sourceSelDay);
+                if (js) newSelected = {
+                    year: js.jy, month: js.jm,
+                    day: Math.min(sourceSelDay, jalaliDaysInMonth(js.jy, js.jm)),
+                    hour: sel.hour || 0, minute: sel.minute || 0
+                };
             } else {
-                var gs = jalaliToGregorian(sel.year, sel.month, sel.day);
-                if (gs) newSelected = { year: gs.gy, month: gs.gm, day: gs.gd, hour: sel.hour || 0, minute: sel.minute || 0 };
+                var gs = jalaliToGregorian(sel.year, sel.month, sourceSelDay);
+                if (gs) newSelected = {
+                    year: gs.gy, month: gs.gm,
+                    day: Math.min(sourceSelDay, gregorianDaysInMonth(gs.gy, gs.gm)),
+                    hour: sel.hour || 0, minute: sel.minute || 0
+                };
             }
+        }
+
+        // FIXED: Convert minDate / maxDate bounds to new calendar
+        if (this.options.minDate) {
+            this.options.minDate = convertDateObj(this.options.minDate, this._calendar, newCal);
+        }
+        if (this.options.maxDate) {
+            this.options.maxDate = convertDateObj(this.options.maxDate, this._calendar, newCal);
         }
 
         this._calendar = newCal;
         this._containerEl.setAttribute('data-calendar', newCal);
         if (this.options.rtl === null) {
             this.options.rtl = (newCal === 'jalali');
-            if (this.options.rtl) this._containerEl.setAttribute('dir', 'rtl');
-            else this._containerEl.removeAttribute('dir');
+        }
+        if (this.options.rtl) {
+            this._containerEl.setAttribute('dir', 'rtl');
+            this._wrapperEl.classList.add('azar-rtl');
+        } else {
+            this._containerEl.removeAttribute('dir');
+            this._wrapperEl.classList.remove('azar-rtl');
         }
 
         this._cursorDate = newCursor;
@@ -631,7 +933,7 @@
         this._renderView();
         this._updateInputDisplay();
 
-        // Update buttons
+        // Update buttons text
         var toggleBtn = this._containerEl.querySelector('.azar-calendar-toggle');
         if (toggleBtn) toggleBtn.textContent = newCal === 'jalali' ? 'میلادی' : 'شمسی';
         var todayBtn = this._containerEl.querySelector('.azar-btn-today');
@@ -645,10 +947,15 @@
         // Update time labels
         var hourLabel = newCal === 'jalali' ? 'ساعت' : 'Hour';
         var minuteLabel = newCal === 'jalali' ? 'دقیقه' : 'Min';
-        var hourLabelEl = this._containerEl.querySelector('.azar-time-col label:first-of-type');
-        var minuteLabelEl = this._containerEl.querySelector('.azar-time-col:last-of-type label');
-        if (hourLabelEl) hourLabelEl.textContent = hourLabel;
-        if (minuteLabelEl) minuteLabelEl.textContent = minuteLabel;
+        var labels = this._containerEl.querySelectorAll('.azar-time-col label');
+        if (labels[0]) labels[0].textContent = hourLabel;
+        if (labels[1]) labels[1].textContent = minuteLabel;
+
+        // Update nav buttons
+        var prevBtn = this._containerEl.querySelector('.azar-btn-prev');
+        var nextBtn = this._containerEl.querySelector('.azar-btn-next');
+        if (prevBtn) prevBtn.textContent = newCal === 'jalali' ? '›' : '‹';
+        if (nextBtn) nextBtn.textContent = newCal === 'jalali' ? '‹' : '›';
     };
 
     AzarDatepicker.prototype._onDaySelect = function (dayData) {
@@ -665,7 +972,7 @@
             var minDays = dateToTotalDays(this.options.minDate, this._calendar);
             var selDays = dateToTotalDays(newDate, this._calendar);
             if (!isNaN(minDays) && !isNaN(selDays) && selDays < minDays) {
-                return; // silently reject
+                return;
             }
         }
         if (this.options.maxDate) {
@@ -710,7 +1017,6 @@
         var h = (this._selectedDate.hour || 0) + dh;
         var m = (this._selectedDate.minute || 0) + dm;
 
-        // Safe modulo wrapping
         h = ((h % 24) + 24) % 24;
         m = ((m % 60) + 60) % 60;
 
@@ -762,7 +1068,6 @@
         var daysInMonth = this._getDaysInMonth(year, month);
         var cal = this._calendar;
 
-        // Safe first-day calculation
         var firstDayDate;
         if (cal === 'jalali') {
             var g = jalaliToGregorian(year, month, 1);
@@ -777,7 +1082,7 @@
         }
 
         var startDayOfWeek = firstDayDate.getDay();
-        var weekStart = (cal === 'jalali') ? 6 : 0; // Jalali: Saturday=6, Gregorian: Sunday=0
+        var weekStart = (cal === 'jalali') ? 6 : 0;
         var leadingBlanks = (startDayOfWeek - weekStart + 7) % 7;
 
         var now = new Date();
@@ -790,7 +1095,7 @@
         var prevDays = this._getDaysInMonth(prevYear, prevMonth);
         for (var i = leadingBlanks - 1; i >= 0; i--) {
             var pd = prevDays - i;
-            html += '<span class="azar-day-cell azar-outside" data-year="' + prevYear + '" data-month="' + prevMonth +
+            html += '<span class="azar-day-cell azar-outside" role="gridcell" aria-disabled="true" tabindex="-1" data-year="' + prevYear + '" data-month="' + prevMonth +
                 '" data-day="' + pd + '">' + pd + '</span>';
         }
 
@@ -798,8 +1103,9 @@
             var classes = 'azar-day-cell';
             var cellDate = { year: year, month: month, day: d, hour: 0, minute: 0 };
             var isDisabled = false;
+            var ariaSel = 'false';
+            var ariaDis = 'false';
 
-            // Check min/max
             if (self.options.minDate) {
                 var minD = dateToTotalDays(self.options.minDate, cal);
                 var curD = dateToTotalDays(cellDate, cal);
@@ -813,6 +1119,7 @@
 
             if (isDisabled) {
                 classes += ' azar-disabled';
+                ariaDis = 'true';
             } else {
                 var weekday = this._getWeekdayIndex(year, month, d);
                 if (this._isWeekend(weekday)) {
@@ -828,9 +1135,10 @@
                 if (self._selectedDate && self._selectedDate.year === year && self._selectedDate.month === month &&
                     self._selectedDate.day === d) {
                     classes += ' azar-selected';
+                    ariaSel = 'true';
                 }
             }
-            html += '<span class="' + classes + '" data-year="' + year + '" data-month="' + month + '" data-day="' + d +
+            html += '<span class="' + classes + '" role="gridcell" aria-selected="' + ariaSel + '" aria-disabled="' + ariaDis + '" tabindex="' + (isDisabled ? '-1' : '-1') + '" data-year="' + year + '" data-month="' + month + '" data-day="' + d +
                 '">' + d + '</span>';
         }
 
@@ -840,7 +1148,7 @@
             nextYear = year;
         if (nextMonth > 12) { nextMonth = 1; nextYear++; }
         for (var nd = 1; nd <= trailingBlanks; nd++) {
-            html += '<span class="azar-day-cell azar-outside" data-year="' + nextYear + '" data-month="' + nextMonth +
+            html += '<span class="azar-day-cell azar-outside" role="gridcell" aria-disabled="true" tabindex="-1" data-year="' + nextYear + '" data-month="' + nextMonth +
                 '" data-day="' + nd + '">' + nd + '</span>';
         }
         grid.innerHTML = html;
@@ -852,8 +1160,9 @@
         var html = '';
         for (var i = 0; i < 12; i++) {
             var classes = 'azar-month-cell';
-            if (this._cursorDate.month === i + 1) classes += ' azar-selected';
-            html += '<span class="' + classes + '" data-month="' + (i + 1) + '">' + months[i] + '</span>';
+            var sel = this._cursorDate.month === i + 1;
+            if (sel) classes += ' azar-selected';
+            html += '<span class="' + classes + '" role="gridcell" aria-selected="' + (sel ? 'true' : 'false') + '" tabindex="-1" data-month="' + (i + 1) + '">' + months[i] + '</span>';
         }
         grid.innerHTML = html;
     };
@@ -861,12 +1170,15 @@
     AzarDatepicker.prototype._renderYearsGrid = function () {
         var grid = this._containerEl.querySelector('.azar-view-years');
         var baseYear = Math.floor(this._cursorDate.year / 12) * 12 - 2;
+        if (baseYear < 1) baseYear = 1;
         var html = '';
         for (var i = 0; i < 16; i++) {
             var y = baseYear + i;
+            if (y < 1) continue;
             var classes = 'azar-year-cell';
-            if (this._cursorDate.year === y) classes += ' azar-selected';
-            html += '<span class="' + classes + '" data-year="' + y + '">' + y + '</span>';
+            var sel = this._cursorDate.year === y;
+            if (sel) classes += ' azar-selected';
+            html += '<span class="' + classes + '" role="gridcell" aria-selected="' + (sel ? 'true' : 'false') + '" tabindex="-1" data-year="' + y + '">' + y + '</span>';
         }
         grid.innerHTML = html;
     };
@@ -900,9 +1212,8 @@
         this.inputEl.setAttribute('value', this.inputEl.value);
 
         this.inputEl.classList.add('azar-has-value');
-        // Show clear button
         if (this._clearBtn) {
-            this._clearBtn.style.display = this._selectedDate ? '' : 'none';
+            this._clearBtn.style.display = '';
         }
     };
 
@@ -942,18 +1253,26 @@
             .replace('a', h >= 12 ? 'pm' : 'am');
     };
 
+    // FIXED: deduplicate callbacks
     AzarDatepicker.prototype._fireChange = function () {
         if (!this._selectedDate || typeof this.options.onChange !== 'function') return;
-        this.options.onChange(this._getOutputData());
+        var data = this._getOutputData();
+        var key = data.calendar + '|' + data.formatted;
+        if (this._lastChangeKey === key) return;
+        this._lastChangeKey = key;
+        this.options.onChange(data);
     };
 
     AzarDatepicker.prototype._fireSelect = function () {
         if (!this._selectedDate || typeof this.options.onSelect !== 'function') return;
-        this.options.onSelect(this._getOutputData());
+        var data = this._getOutputData();
+        var key = data.calendar + '|' + data.formatted;
+        if (this._lastSelectKey === key) return;
+        this._lastSelectKey = key;
+        this.options.onSelect(data);
     };
 
     AzarDatepicker.prototype._fireClear = function () {
-        // FIXED: properly check if onClear is a function
         if (typeof this.options.onClear === 'function') {
             this.options.onClear();
         }
@@ -999,6 +1318,13 @@
     // ========== PUBLIC API ==========
     AzarDatepicker.prototype.open = function () {
         if (!this._containerEl || this._isOpen) return;
+
+        // FIXED: cancel pending close timeout to prevent race
+        if (this._closingTimeout) {
+            clearTimeout(this._closingTimeout);
+            this._closingTimeout = null;
+        }
+
         this._detectMobile();
         this._detectDarkMode();
         this._applyDarkMode();
@@ -1012,9 +1338,8 @@
         if (this._isMobile) {
             container.classList.add('azar-modal');
             this._overlayEl.classList.add('azar-open');
-            container.style.zIndex = '10550';          // above Bootstrap modal
-            this._overlayEl.style.zIndex = '10549';   // overlay just below container
-            // Reset inline positioning (modal uses centered fixed)
+            container.style.zIndex = '10550';
+            this._overlayEl.style.zIndex = '10549';
             container.style.top = '';
             container.style.bottom = '';
             container.style.left = '';
@@ -1024,33 +1349,40 @@
         } else {
             container.classList.remove('azar-modal');
             this._overlayEl.classList.remove('azar-open');
-            this._positionContainer();                // set dropdown position & flip
+            this._positionContainer();
         }
 
         void container.offsetWidth;
         container.classList.add('azar-open');
         this._isOpen = true;
+        this.inputEl.setAttribute('aria-expanded', 'true');
+        container.setAttribute('aria-modal', this._isMobile ? 'true' : 'false');
+
+        // Focus first focusable for accessibility
+        if (this._isMobile) {
+            var firstBtn = container.querySelector('button');
+            if (firstBtn) firstBtn.focus();
+        }
     };
+
+    // FIXED: horizontal overflow protection
     AzarDatepicker.prototype._positionContainer = function () {
         var container = this._containerEl;
-        if (!container || this._isMobile) return;  // mobile uses fixed centering
+        if (!container || this._isMobile) return;
 
         var input = this.inputEl;
         var inputRect = input.getBoundingClientRect();
-        var containerHeight = container.offsetHeight || 310; // fallback guess
+        var containerWidth = container.offsetWidth || 310;
+        var containerHeight = container.offsetHeight || 310;
         var spaceBelow = window.innerHeight - inputRect.bottom;
         var spaceAbove = inputRect.top;
         var isRtl = this.options.rtl;
 
-        // Decide direction: if there's less than 220px below and more above, flip
         var flip = (spaceBelow < containerHeight + 10) && (spaceAbove > spaceBelow);
-
-        // Remove any previous direction classes
         container.classList.remove('azar-drop-up', 'azar-drop-down');
 
         if (flip) {
             container.classList.add('azar-drop-up');
-            // Position above the input
             container.style.top = 'auto';
             container.style.bottom = (window.innerHeight - inputRect.top) + 'px';
             container.style.marginBottom = '6px';
@@ -1061,17 +1393,22 @@
             container.style.marginTop = '6px';
         }
 
-        // Horizontal positioning (take RTL into account)
-        if (isRtl) {
-            // Align right edge
-            container.style.right = (window.innerWidth - inputRect.right) + 'px';
-            container.style.left = 'auto';
-        } else {
-            container.style.left = inputRect.left + 'px';
+        var left = isRtl ? (window.innerWidth - inputRect.right) : inputRect.left;
+        if (!isRtl) {
+            if (left + containerWidth > window.innerWidth - 10) {
+                left = Math.max(10, window.innerWidth - containerWidth - 10);
+            }
+            container.style.left = left + 'px';
             container.style.right = 'auto';
+        } else {
+            var right = window.innerWidth - inputRect.right;
+            if (right + containerWidth > window.innerWidth - 10) {
+                right = Math.max(10, window.innerWidth - containerWidth - 10);
+            }
+            container.style.right = right + 'px';
+            container.style.left = 'auto';
         }
 
-        // Set a high custom z‑index directly (overrides CSS variable if needed)
         container.style.zIndex = '10550';
     };
 
@@ -1086,6 +1423,7 @@
         this._closingTimeout = setTimeout(function () {
             container.classList.remove('azar-closing', 'azar-modal');
             self._isOpen = false;
+            self.inputEl.setAttribute('aria-expanded', 'false');
         }, 200);
     };
 
@@ -1115,59 +1453,74 @@
         this._updateInputDisplay();
         this._renderView();
     };
+
+    // FIXED: respect inputFormat when parsing
     AzarDatepicker.prototype.setValueFromString = function (dateString) {
-        // Clear if empty
         if (!dateString || typeof dateString !== 'string' || dateString.trim() === '') {
             this.setValue(null);
             return this;
         }
 
-        var parts = dateString.trim().split(/\s+/);
-        var datePart = parts[0];
-        var timePart = parts[1] || '00:00';
-
-        // Accept both '/' and '-' as separator
-        datePart = datePart.replace(/-/g, '/');
-        var dateSegments = datePart.split('/');
-
-        if (dateSegments.length !== 3) {
-            console.warn('AzarDatepicker.setValueFromString: invalid format. Use YYYY/MM/DD or YYYY-MM-DD');
+        var format = this.options.inputFormat || 'YYYY/MM/DD';
+        var parsed = parseDateString(dateString.trim(), format, this._calendar);
+        if (!parsed) {
+            console.warn('AzarDatepicker.setValueFromString: format mismatch. Expected ' + format);
             return this;
         }
 
-        var year = parseInt(dateSegments[0], 10);
-        var month = parseInt(dateSegments[1], 10);
-        var day = parseInt(dateSegments[2], 10);
-
-        if (isNaN(year) || isNaN(month) || isNaN(day)) {
-            console.warn('AzarDatepicker.setValueFromString: non‑numeric values');
+        if (!parsed.year || !parsed.month || !parsed.day) {
+            console.warn('AzarDatepicker.setValueFromString: incomplete date');
             return this;
         }
 
-        // Time
-        var timeSegments = timePart.split(':');
-        var hour = parseInt(timeSegments[0], 10) || 0;
-        var minute = parseInt(timeSegments[1], 10) || 0;
-
-        // Basic range checks (detailed day‑in‑month is handled by setValue)
-        if (month < 1 || month > 12 || day < 1 || day > 31 || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+        if (parsed.month < 1 || parsed.month > 12 || parsed.day < 1 || parsed.day > 31 || parsed.hour < 0 || parsed.hour > 23 || parsed.minute < 0 || parsed.minute > 59) {
             console.warn('AzarDatepicker.setValueFromString: value out of range');
             return this;
         }
 
-        this.setValue({ year: year, month: month, day: day, hour: hour, minute: minute });
+        this.setValue({ year: parsed.year, month: parsed.month, day: parsed.day, hour: parsed.hour, minute: parsed.minute });
         return this;
     };
+
     AzarDatepicker.prototype.setCalendar = function (cal) { if (cal !== this._calendar) this._toggleCalendar(); };
     AzarDatepicker.prototype.getCalendar = function () { return this._calendar; };
+
+    // FIXED: proper cleanup of all listeners and observers
     AzarDatepicker.prototype.destroy = function () {
         this.close();
+
+        if (this._themeObserver) this._themeObserver.disconnect();
+        if (this._prefersDarkMql && this._handlers.prefersDark) {
+            this._prefersDarkMql.removeEventListener('change', this._handlers.prefersDark);
+        }
 
         if (this._overlayEl && this._overlayEl.parentNode) {
             this._overlayEl.parentNode.removeChild(this._overlayEl);
         }
         if (this._containerEl && this._containerEl.parentNode) {
             this._containerEl.parentNode.removeChild(this._containerEl);
+        }
+
+        if (this._clearBtn && this._handlers.clearClick) {
+            this._clearBtn.removeEventListener('click', this._handlers.clearClick);
+        }
+        if (this._handlers.inputClick) {
+            this.inputEl.removeEventListener('click', this._handlers.inputClick);
+        }
+        if (this._handlers.containerClick && this._containerEl) {
+            this._containerEl.removeEventListener('click', this._handlers.containerClick);
+        }
+        if (this._handlers.overlayClick && this._overlayEl) {
+            this._overlayEl.removeEventListener('click', this._handlers.overlayClick);
+        }
+        if (this._handlers.docClick) {
+            document.removeEventListener('click', this._handlers.docClick);
+        }
+        if (this._handlers.docKey) {
+            document.removeEventListener('keydown', this._handlers.docKey);
+        }
+        if (this._handlers.resize) {
+            window.removeEventListener('resize', this._handlers.resize);
         }
 
         try {
@@ -1180,14 +1533,23 @@
                 this.inputEl.classList.remove('azar-datepicker-input');
                 this.inputEl.removeAttribute('readonly');
                 this.inputEl.removeAttribute('autocomplete');
+                this.inputEl.removeAttribute('aria-haspopup');
+                this.inputEl.removeAttribute('aria-expanded');
+                this.inputEl.removeAttribute('aria-controls');
             }
             return;
         }
 
-        this.inputEl.classList.remove('azar-datepicker-input');
-        this.inputEl.removeAttribute('readonly');
-        this.inputEl.removeAttribute('autocomplete');
+        if (this.inputEl) {
+            this.inputEl.classList.remove('azar-datepicker-input');
+            this.inputEl.removeAttribute('readonly');
+            this.inputEl.removeAttribute('autocomplete');
+            this.inputEl.removeAttribute('aria-haspopup');
+            this.inputEl.removeAttribute('aria-expanded');
+            this.inputEl.removeAttribute('aria-controls');
+        }
     };
+
     AzarDatepicker.prototype.refresh = function () {
         this._detectDarkMode();
         this._applyDarkMode();
