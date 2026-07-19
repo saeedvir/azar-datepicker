@@ -2,7 +2,12 @@
 /*
 * https://github.com/saeedvir/azar-datepicker
 */
-:root {
+/* Light theme. The .azar-light variants let JS force light per instance
+   (darkMode: 'light') even when the page root is themed dark. */
+:root,
+.azar-datepicker-wrapper.azar-light,
+.azar-datepicker-container.azar-light,
+.azar-overlay.azar-light {
     --azar-primary: #4f46e5;
     --azar-primary-hover: #4338ca;
     --azar-primary-light: #eef2ff;
@@ -31,9 +36,13 @@
     --azar-weekend-color: #e53e3e;
 }
 
-/* Dark mode: data-theme="dark" */
+/* Dark theme: page-level data-theme attributes, or the .azar-dark class that
+   JS applies from darkMode: 'dark' / 'auto' (OS preference) detection. */
 :root[data-theme="dark"],
-:root[data-bs-theme="dark"] {
+:root[data-bs-theme="dark"],
+.azar-datepicker-wrapper.azar-dark,
+.azar-datepicker-container.azar-dark,
+.azar-overlay.azar-dark {
     --azar-bg: #1e1f2b;
     --azar-surface: #272833;
     --azar-border: #35374b;
@@ -102,10 +111,9 @@
 
 /* ===== Container (dropdown / modal) ===== */
 .azar-datepicker-container {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
-    z-index: 1000;
+    /* JS positions this with viewport coordinates on open */
+    position: fixed;
+    z-index: var(--azar-modal-z);
     background: var(--azar-bg);
     border: 1px solid var(--azar-border);
     border-radius: var(--azar-radius);
@@ -247,21 +255,8 @@
     transform: scale(0.9);
 }
 
-/* Upward dropdown */
-.azar-datepicker-container.azar-drop-up {
-    top: auto;
-    bottom: 100%;
-    margin-top: 0;
-    margin-bottom: 6px;
-}
-
-/* Downward dropdown (explicit) */
-.azar-datepicker-container.azar-drop-down {
-    top: 100%;
-    bottom: auto;
-    margin-bottom: 0;
-    margin-top: 6px;
-}
+/* .azar-drop-up / .azar-drop-down are set by JS for styling hooks;
+   coordinates are applied inline by _positionContainer(). */
 
 /* ===== Body ===== */
 .azar-datepicker-body {
@@ -612,13 +607,13 @@
     left: 10px;
 }
 
-/* Adjust input padding to not overlap with the button */
-.azar-datepicker-input {
+/* Adjust input padding to not overlap with the button (only when it exists) */
+.azar-datepicker-wrapper.azar-has-clear .azar-datepicker-input {
     padding-right: 34px;
 }
 
-.azar-datepicker-wrapper.azar-rtl .azar-datepicker-input {
-    padding-right: 10px;
+.azar-datepicker-wrapper.azar-has-clear.azar-rtl .azar-datepicker-input {
+    padding-right: 14px;
     padding-left: 34px;
 }
 
@@ -642,9 +637,10 @@
     .azar-header-display,
     .azar-datepicker-input,
     .azar-clear-btn {
+        /* Only motion is disabled. transform must stay: it does static layout
+           here (modal centering, clear-button centering, RTL arrow mirror). */
         transition: none !important;
         animation: none !important;
-        transform: none !important;
     }
 }
 

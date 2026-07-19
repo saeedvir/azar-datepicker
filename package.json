@@ -4,9 +4,13 @@
   "description": "Persian & Gregorian date picker (pure JS)",
   "main": "datepicker.js",
   "style": "datepicker.css",
+  "scripts": {
+    "test": "node test.js && node test-dom.js",
+    "build": "npx terser datepicker.js --compress --mangle --comments '/^!/' -o datepicker.min.js && npx csso-cli datepicker.css -o datepicker.min.css"
+  },
   "files": [
     "datepicker.js",
-    "datepicker..min.js",
+    "datepicker.min.js",
     "datepicker.css",
     "datepicker.min.css"
   ],
