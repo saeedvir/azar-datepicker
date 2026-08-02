@@ -1,26 +1,7 @@
-/*! Azar Datepicker v1.2.0 – Persian & Gregorian date picker (pure JS) */
+/*! Azar Datepicker v1.2.1 – Persian & Gregorian date picker (pure JS) */
 /*
 * https://github.com/saeedvir/azar-datepicker
 *
-* Changelog v1.2.0:
-* - Fixed calendar toggle losing days 29-31
-* - Fixed memory leaks in destroy()
-* - Fixed close/open race condition
-* - Fixed RTL clear-button positioning
-* - Fixed minDate/maxDate not converting on calendar toggle
-* - Fixed _goToToday() bypassing bounds
-* - Fixed setValueFromString() respecting inputFormat
-* - Fixed dateToTotalDays() using consistent timestamps
-* - Fixed today-on-weekend color override
-* - Fixed negative years in year grid
-* - Fixed _navigate() min/max guard for year view
-* - Added deduplication for onChange/onSelect
-* - Added keyboard navigation (arrows, page, home, end, enter, escape)
-* - Added ARIA roles, labels, and live regions
-* - Added focus trap for modal mode
-* - Added horizontal viewport overflow protection
-* - Added MutationObserver for data-theme changes
-* - Added prefers-reduced-motion support
 */
 (function (global) {
     'use strict';
