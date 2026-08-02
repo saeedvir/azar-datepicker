@@ -1,4 +1,4 @@
-/*! Azar Datepicker v1.2.0 – Persian & Gregorian date picker (pure JS) */
+/*! Azar Datepicker v1.2.1 – Persian & Gregorian date picker (pure JS) */
 /*
 * https://github.com/saeedvir/azar-datepicker
 */
@@ -102,10 +102,10 @@
 
 /* ===== Container (dropdown / modal) ===== */
 .azar-datepicker-container {
-    position: absolute;
+    position: fixed;
     top: calc(100% + 6px);
     left: 0;
-    z-index: 1000;
+    z-index: 10550;
     background: var(--azar-bg);
     border: 1px solid var(--azar-border);
     border-radius: var(--azar-radius);
@@ -247,18 +247,14 @@
     transform: scale(0.9);
 }
 
-/* Upward dropdown */
+/* Upward dropdown - positioning handled by JS inline styles */
 .azar-datepicker-container.azar-drop-up {
-    top: auto;
-    bottom: 100%;
     margin-top: 0;
     margin-bottom: 6px;
 }
 
-/* Downward dropdown (explicit) */
+/* Downward dropdown - positioning handled by JS inline styles */
 .azar-datepicker-container.azar-drop-down {
-    top: 100%;
-    bottom: auto;
     margin-bottom: 0;
     margin-top: 6px;
 }
